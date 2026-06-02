@@ -1,0 +1,9 @@
+Backend
+cd 'C:\Users\Andrés N\Desktop\MotoTaxi\backend'
+& 'C:\Program Files\nodejs\npm.cmd' install
+& 'C:\Program Files\nodejs\npm.cmd' start
+
+Frontend
+cd 'C:\Users\Andrés N\Desktop\MotoTaxi\frontend'
+& 'C:\Program Files\nodejs\npm.cmd' install
+& 'C:\Program Files\nodejs\npm.cmd' start
