@@ -1,0 +1,156 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.login-box {
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.logo {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.logo h1 {
+  margin: 0;
+  font-size: 2.5em;
+  color: #667eea;
+}
+
+.logo p {
+  margin: 5px 0 0 0;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.error-message {
+  background: #ff6b6b;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form h2 {
+  text-align: center;
+  color: #333;
+  margin: 0 0 10px 0;
+}
+
+.form input,
+.form select {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  transition: border-color 0.3s;
+}
+
+.form input:focus,
+.form select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form button[type="submit"] {
+  padding: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.form button[type="submit"]:hover {
+  transform: translateY(-2px);
+}
+
+.demo-buttons {
+  text-align: center;
+}
+
+.demo-buttons p {
+  margin: 0 0 10px 0;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.demo-btn {
+  padding: 10px;
+  margin: 5px;
+  border: 2px solid;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: bold;
+  width: 48%;
+  display: inline-block;
+}
+
+.demo-btn.passenger {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.demo-btn.passenger:hover {
+  background: #667eea;
+  color: white;
+}
+
+.demo-btn.driver {
+  border-color: #764ba2;
+  color: #764ba2;
+}
+
+.demo-btn.driver:hover {
+  background: #764ba2;
+  color: white;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.9em;
+  padding: 5px;
+}
+
+.toggle-btn:hover {
+  color: #764ba2;
+}

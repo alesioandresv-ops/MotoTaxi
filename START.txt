@@ -1,0 +1,125 @@
+╔════════════════════════════════════════════════════════════════════╗
+║                    🏍️ BIENVENIDO A MOTOTAXI 🏍️                    ║
+║                  Tu App de Mototaxi tipo Uber                      ║
+╚════════════════════════════════════════════════════════════════════╝
+
+⚡ INICIO RÁPIDO (2 SEGUNDOS):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Abre el archivo: index.html (en esta carpeta)
+2️⃣  Haz clic en "Demo Pasajero" o "Demo Conductor"
+3️⃣  ¡La aplicación está lista!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTACIÓN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 README.md       - Información completa sobre el proyecto
+📖 INSTALL.md      - Guía de instalación y solución de problemas  
+📖 SUMMARY.md      - Resumen ejecutivo del proyecto
+📖 START.txt       - Este archivo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ CARACTERÍSTICAS PRINCIPALES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 PARA PASAJEROS:
+   ✅ Solicitar viajes
+   ✅ Ver tarifa estimada
+   ✅ Rastrear conductor
+   ✅ Historial de viajes
+   ✅ Sistema de calificaciones
+
+🏍️ PARA CONDUCTORES:
+   ✅ Modo en línea
+   ✅ Ver viajes disponibles
+   ✅ Aceptar viajes
+   ✅ Seguimiento de ganancias
+   ✅ Estadísticas de desempeño
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 QUÉ PROBAR PRIMERO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Inicia como PASAJERO:
+   • Completa los campos de origen y destino
+   • Solicita un viaje
+   • Observa cómo cambia el estado
+   • Haz clic en "Simular Aceptación" para ver al conductor en camino
+
+2. Inicia como CONDUCTOR:
+   • Activa el botón "En Línea"
+   • Verás viajes disponibles
+   • Haz clic en "Aceptar" para tomar un viaje
+   • Completa el viaje y observa las ganancias
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💻 REQUISITOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Navegador web moderno (Chrome, Firefox, Edge, Safari)
+✅ Listo para usar - ¡Sin instalación requerida!
+❌ NO requiere Node.js o npm para la versión HTML
+❌ NO requiere acceso a internet
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 ARCHIVOS DEL PROYECTO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 index.html              ← ARCHIVO PRINCIPAL (Haz clic aquí para abrir)
+📁 backend/                - Código del servidor (opcional)
+📁 frontend/               - Código React (para desarrollo)
+📄 README.md               - Documentación completa
+📄 INSTALL.md              - Guía de instalación
+📄 SUMMARY.md              - Resumen del proyecto
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌟 USUARIOS DE DEMOSTRACIÓN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 PASAJERO:
+   Nombre: Juan Pasajero
+   Email: pasajero@demo.com
+   Calificación: ⭐ 4.8
+
+🏍️ CONDUCTOR:
+   Nombre: Carlos Conductor
+   Email: conductor@demo.com
+   Calificación: ⭐ 4.9
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ ¿PROBLEMAS?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q: No puedo abrir el archivo
+A: Haz clic derecho → "Abrir con" → Elige tu navegador (Chrome, Firefox)
+
+Q: Los datos desaparecen al recargar
+A: Es normal - los datos se almacenan en memoria. Diseño de demostración.
+
+Q: ¿Qué navegador debo usar?
+A: Cualquiera moderno. Chrome o Firefox funcionan perfecto.
+
+Q: ¿Necesito instalar algo?
+A: ¡No! Solo abre el archivo HTML en tu navegador.
+
+Más información en: INSTALL.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 VERSIÓN: 1.0.0
+📅 Fecha: 28 de Mayo de 2026
+✅ Estado: COMPLETADO Y FUNCIONAL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 ¡Bienvenido a MotoTaxi! Disfruta la experiencia. 🎉
+
+═══════════════════════════════════════════════════════════════════════
