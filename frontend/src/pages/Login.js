@@ -7,8 +7,17 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
   const [name, setName] = useState('');
   const [userType, setUserType] = useState('passenger');
   const [phone, setPhone] = useState('');
-  const [vehicle, setVehicle] = useState('');
-  const [licenseNumber, setLicenseNumber] = useState('');
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleColor, setVehicleColor] = useState('');
+  const [cc, setCc] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [hasHelmetDriver, setHasHelmetDriver] = useState(true);
+  const [hasHelmetPassenger, setHasHelmetPassenger] = useState(true);
+  const [hasInsurance, setHasInsurance] = useState(false);
+  const [insuranceType, setInsuranceType] = useState('');
+  const [drivingLicense, setDrivingLicense] = useState('');
+  const [lastService, setLastService] = useState('');
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(showRegister);
 
@@ -31,14 +40,23 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          email,
-          password,
-          userType,
-          phone,
-          vehicle,
-          licenseNumber
-        })
+            name,
+            email,
+            password,
+            userType,
+            phone,
+            vehicleBrand,
+            vehicleModel,
+            vehicleColor,
+            cc,
+            plateNumber,
+            hasHelmetDriver,
+            hasHelmetPassenger,
+            hasInsurance,
+            insuranceType,
+            drivingLicense,
+            lastService
+          })
       });
       
       if (response.ok) {
@@ -55,8 +73,17 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
         setPassword('');
         setName('');
         setPhone('');
-        setVehicle('');
-        setLicenseNumber('');
+        setVehicleBrand('');
+        setVehicleModel('');
+        setVehicleColor('');
+        setCc('');
+        setPlateNumber('');
+        setHasHelmetDriver(true);
+        setHasHelmetPassenger(true);
+        setHasInsurance(false);
+        setInsuranceType('');
+        setDrivingLicense('');
+        setLastService('');
         setUserType('passenger');
       } else {
         const errorData = await response.json();
@@ -205,16 +232,69 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
               <>
                 <input
                   type="text"
-                  placeholder="Vehículo (Ej. Yamaha YZF 150)"
-                  value={vehicle}
-                  onChange={(e) => setVehicle(e.target.value)}
+                  placeholder="Marca de la moto (Ej. Yamaha)"
+                  value={vehicleBrand}
+                  onChange={(e) => setVehicleBrand(e.target.value)}
                   required
                 />
                 <input
                   type="text"
-                  placeholder="Número de licencia"
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
+                  placeholder="Modelo de la moto (Ej. YZF 150)"
+                  value={vehicleModel}
+                  onChange={(e) => setVehicleModel(e.target.value)}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Color de la moto"
+                  value={vehicleColor}
+                  onChange={(e) => setVehicleColor(e.target.value)}
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="Cilindradas (cc)"
+                  value={cc}
+                  onChange={(e) => setCc(e.target.value)}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Patente (ej. ABC123)"
+                  value={plateNumber}
+                  onChange={(e) => setPlateNumber(e.target.value)}
+                  required
+                />
+                <label>
+                  <input type="checkbox" checked={hasHelmetDriver} onChange={(e) => setHasHelmetDriver(e.target.checked)} /> Casco conductor
+                </label>
+                <label>
+                  <input type="checkbox" checked={hasHelmetPassenger} onChange={(e) => setHasHelmetPassenger(e.target.checked)} /> Casco acompañante
+                </label>
+                <label>
+                  <input type="checkbox" checked={hasInsurance} onChange={(e) => setHasInsurance(e.target.checked)} /> Tiene seguro
+                </label>
+                {hasInsurance && (
+                  <input
+                    type="text"
+                    placeholder="Tipo de seguro"
+                    value={insuranceType}
+                    onChange={(e) => setInsuranceType(e.target.value)}
+                    required
+                  />
+                )}
+                <input
+                  type="text"
+                  placeholder="Carnet de conducir (nº)"
+                  value={drivingLicense}
+                  onChange={(e) => setDrivingLicense(e.target.value)}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Último servicio realizado"
+                  value={lastService}
+                  onChange={(e) => setLastService(e.target.value)}
                   required
                 />
               </>

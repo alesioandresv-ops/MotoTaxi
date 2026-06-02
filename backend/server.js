@@ -21,6 +21,23 @@ const drivers = [];
 const trips = [];
 const ratings = [];
 
+function estimateDistance(pickupAddress, dropoffAddress) {
+  const base = Math.max(1, Math.round((pickupAddress.length + dropoffAddress.length) / 15));
+  return base;
+}
+
+function formatCurrencyARS(amount) {
+  return Number(amount.toFixed(2));
+}
+
+function calculateFare(distance, rate) {
+  return formatCurrencyARS(Math.max(150, distance * rate));
+}
+
+function isDriverBusy(driverId) {
+  return trips.some(t => t.driverId === driverId && ['accepted', 'ongoing'].includes(t.status));
+}
+
 // Cargar datos persistidos si existen
 if (fs.existsSync(DATA_FILE)) {
   try {
@@ -46,8 +63,26 @@ function saveData() {
 
 // Rutas de Autenticación
 app.post('/api/auth/register', (req, res) => {
-  const { name, email, password, userType, phone, vehicle, licenseNumber } = req.body;
-  
+  const {
+    name,
+    email,
+    password,
+    userType,
+    phone,
+    // driver specific
+    vehicleBrand,
+    vehicleModel,
+    vehicleColor,
+    cc,
+    plateNumber,
+    hasHelmetDriver,
+    hasHelmetPassenger,
+    hasInsurance,
+    insuranceType,
+    drivingLicense,
+    lastService
+  } = req.body;
+
   if (!name || !email || !password || !userType || !phone) {
     return res.status(400).json({ error: 'Faltan campos requeridos' });
   }
@@ -81,16 +116,38 @@ app.post('/api/auth/register', (req, res) => {
   };
 
   if (userType === 'driver') {
+    // Validaciones obligatorias para conductores
+    if (!vehicleBrand || !vehicleModel || !vehicleColor || !cc || !plateNumber || !drivingLicense || !lastService) {
+      return res.status(400).json({ error: 'Faltan datos del vehículo o documentación requerida para el conductor' });
+    }
+
+    // Validar formato de patente (alfanumérico)
+    const plateOk = /^[A-Za-z0-9]+$/.test(String(plateNumber));
+    if (!plateOk) {
+      return res.status(400).json({ error: 'Formato de patente inválido. Debe contener letras y/o números.' });
+    }
+
     const driver = {
       id: uuidv4(),
       userId: user.id,
-      vehicle: vehicle || 'Moto estándar',
-      licenseNumber: licenseNumber || '',
+      vehicleBrand,
+      vehicleModel,
+      vehicleColor,
+      cc,
+      plateNumber,
+      hasHelmetDriver: Boolean(hasHelmetDriver),
+      hasHelmetPassenger: Boolean(hasHelmetPassenger),
+      hasInsurance: Boolean(hasInsurance),
+      insuranceType: hasInsurance ? (insuranceType || '') : '',
+      drivingLicense: drivingLicense || '',
+      lastService: lastService || '',
       phone,
       rating: 5.0,
       tripsCompleted: 0,
-      isAvailable: true,
+      isOnline: false,
+      isAvailable: false,
       location: { lat: 0, lng: 0 },
+      fareRate: 200,
       createdAt: new Date()
     };
 
@@ -98,9 +155,18 @@ app.post('/api/auth/register', (req, res) => {
     saveData();
     userResponse.driverProfile = {
       driverId: driver.id,
-      vehicle: driver.vehicle,
-      licenseNumber: driver.licenseNumber,
-      phone: driver.phone
+      vehicleBrand: driver.vehicleBrand,
+      vehicleModel: driver.vehicleModel,
+      vehicleColor: driver.vehicleColor,
+      cc: driver.cc,
+      phone: driver.phone,
+      isOnline: driver.isOnline,
+      isAvailable: driver.isAvailable,
+      fareRate: driver.fareRate,
+      // keep plateNumber in driver profile for driver UI only
+      plateNumber: driver.plateNumber,
+      drivingLicense: driver.drivingLicense,
+      lastService: driver.lastService
     };
   }
 
@@ -132,7 +198,9 @@ app.post('/api/auth/login', (req, res) => {
         vehicle: driver.vehicle,
         licenseNumber: driver.licenseNumber,
         phone: driver.phone,
-        isAvailable: driver.isAvailable
+        isOnline: driver.isOnline,
+        isAvailable: driver.isAvailable,
+        fareRate: driver.fareRate
       };
     }
   }
@@ -172,13 +240,28 @@ app.get('/api/drivers/available', (req, res) => {
 
 app.put('/api/drivers/:driverId/status', (req, res) => {
   const { driverId } = req.params;
-  const { isAvailable } = req.body;
+  const { isOnline } = req.body;
   
   const driver = drivers.find(d => d.id === driverId);
   if (driver) {
-    driver.isAvailable = isAvailable;
+    driver.isOnline = Boolean(isOnline);
+    driver.isAvailable = driver.isOnline && !isDriverBusy(driverId);
     saveData();
     res.json({ message: 'Estado actualizado', driver });
+  } else {
+    res.status(404).json({ error: 'Conductor no encontrado' });
+  }
+});
+
+app.put('/api/drivers/:driverId/tarifa', (req, res) => {
+  const { driverId } = req.params;
+  const { fareRate } = req.body;
+  
+  const driver = drivers.find(d => d.id === driverId);
+  if (driver) {
+    driver.fareRate = Number(fareRate) || driver.fareRate;
+    saveData();
+    res.json({ message: 'Tarifa actualizada', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
   }
@@ -198,26 +281,73 @@ app.put('/api/drivers/:driverId/location', (req, res) => {
   }
 });
 
+app.get('/api/drivers/:driverId/requests', (req, res) => {
+  const { driverId } = req.params;
+  const driver = drivers.find(d => d.id === driverId);
+
+  if (!driver) {
+    return res.status(404).json({ error: 'Conductor no encontrado' });
+  }
+
+  if (!driver.isOnline) {
+    return res.json([]);
+  }
+
+  const availableTrips = trips.filter(t => t.status === 'requested');
+  res.json(availableTrips);
+});
+
+app.get('/api/drivers/:driverId/trips', (req, res) => {
+  const { driverId } = req.params;
+  const driverTrips = trips.filter(t => t.driverId === driverId);
+  res.json(driverTrips);
+});
+
+app.get('/api/drivers/:driverId', (req, res) => {
+  const { driverId } = req.params;
+  const driver = drivers.find(d => d.id === driverId);
+  if (driver) {
+    res.json(driver);
+  } else {
+    res.status(404).json({ error: 'Conductor no encontrado' });
+  }
+});
+
+app.get('/api/trips/:tripId', (req, res) => {
+  const { tripId } = req.params;
+  const trip = trips.find(t => t.id === tripId);
+  if (trip) {
+    res.json(trip);
+  } else {
+    res.status(404).json({ error: 'Viaje no encontrado' });
+  }
+});
+
 // Rutas de Viajes
 app.post('/api/trips/request', (req, res) => {
   const { userId, pickupLocation, dropoffLocation, pickupAddress, dropoffAddress } = req.body;
-  
-  const nearestDriver = drivers.find(d => d.isAvailable);
-  
-  if (!nearestDriver) {
-    return res.status(404).json({ error: 'No hay conductores disponibles' });
+  const passenger = users.find(u => u.id === userId);
+
+  if (!passenger) {
+    return res.status(404).json({ error: 'Pasajero no encontrado' });
   }
+
+  const distance = estimateDistance(pickupAddress, dropoffAddress);
+  const defaultRate = 200;
+  const fare = calculateFare(distance, defaultRate);
 
   const trip = {
     id: uuidv4(),
     userId,
-    driverId: nearestDriver.id,
+    driverId: null,
     pickupLocation,
     dropoffLocation,
     pickupAddress,
     dropoffAddress,
     status: 'requested', // requested, accepted, ongoing, completed, cancelled
-    fare: Math.random() * 50 + 5,
+    distance,
+    fare,
+    currency: 'ARS',
     createdAt: new Date(),
     startTime: null,
     endTime: null
@@ -230,15 +360,50 @@ app.post('/api/trips/request', (req, res) => {
 
 app.put('/api/trips/:tripId/accept', (req, res) => {
   const { tripId } = req.params;
-  
+  const { driverId } = req.body;
+
   const trip = trips.find(t => t.id === tripId);
-  if (trip) {
-    trip.status = 'accepted';
-    saveData();
-    res.json({ message: 'Viaje aceptado', trip });
-  } else {
-    res.status(404).json({ error: 'Viaje no encontrado' });
+  const driver = drivers.find(d => d.id === driverId);
+
+  if (!trip) {
+    return res.status(404).json({ error: 'Viaje no encontrado' });
   }
+
+  if (!driver) {
+    return res.status(404).json({ error: 'Conductor no encontrado' });
+  }
+
+  if (!driver.isOnline) {
+    return res.status(400).json({ error: 'El conductor no está en línea' });
+  }
+
+  if (trip.status !== 'requested') {
+    return res.status(400).json({ error: 'El viaje ya fue aceptado o no está disponible' });
+  }
+
+  trip.driverId = driverId;
+  trip.status = 'accepted';
+  trip.fare = calculateFare(trip.distance || 1, driver.fareRate || 200);
+  // Attach a public snapshot of driver data for the passenger (hide exact plate number)
+  const userOfDriver = users.find(u => u.id === driver.userId);
+  trip.driverSnapshot = {
+    name: userOfDriver ? userOfDriver.name : 'Conductor',
+    vehicleBrand: driver.vehicleBrand,
+    vehicleModel: driver.vehicleModel,
+    vehicleColor: driver.vehicleColor,
+    cc: driver.cc,
+    hasPlate: Boolean(driver.plateNumber),
+    hasHelmetDriver: driver.hasHelmetDriver,
+    hasHelmetPassenger: driver.hasHelmetPassenger,
+    hasInsurance: driver.hasInsurance,
+    insuranceType: driver.hasInsurance ? driver.insuranceType : '',
+    drivingLicense: driver.drivingLicense,
+    lastService: driver.lastService
+  };
+  driver.isAvailable = false;
+  saveData();
+
+  res.json({ message: 'Viaje aceptado', trip });
 });
 
 app.put('/api/trips/:tripId/start', (req, res) => {
@@ -248,6 +413,10 @@ app.put('/api/trips/:tripId/start', (req, res) => {
   if (trip) {
     trip.status = 'ongoing';
     trip.startTime = new Date();
+    const driver = drivers.find(d => d.id === trip.driverId);
+    if (driver) {
+      driver.isAvailable = false;
+    }
     saveData();
     res.json({ message: 'Viaje iniciado', trip });
   } else {
@@ -262,6 +431,11 @@ app.put('/api/trips/:tripId/complete', (req, res) => {
   if (trip) {
     trip.status = 'completed';
     trip.endTime = new Date();
+    const driver = drivers.find(d => d.id === trip.driverId);
+    if (driver) {
+      driver.tripsCompleted = (driver.tripsCompleted || 0) + 1;
+      driver.isAvailable = driver.isOnline && !isDriverBusy(driver.id);
+    }
     saveData();
     res.json({ message: 'Viaje completado', trip });
   } else {

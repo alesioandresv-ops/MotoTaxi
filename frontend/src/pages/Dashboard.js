@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
+
+const API_URL = 'http://localhost:3001';
 
 const Dashboard = ({ user, onLogout }) => {
   const [pickupAddress, setPickupAddress] = useState('');
@@ -7,13 +9,50 @@ const Dashboard = ({ user, onLogout }) => {
   const [activeTrip, setActiveTrip] = useState(null);
   const [trips, setTrips] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [estimatedFare, setEstimatedFare] = useState(null);
+  const [statusMessage, setStatusMessage] = useState('');
 
-  const API_URL = 'http://localhost:3001';
+  const loadTrips = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/trips/user/${user.id}`);
+      if (response.ok) {
+        const userTrips = await response.json();
+        setTrips(userTrips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        const active = userTrips.find((trip) => ['requested', 'accepted', 'ongoing'].includes(trip.status));
+        setActiveTrip(active || null);
+      }
+    } catch (err) {
+      console.error('Error cargando viajes del pasajero', err);
+    }
+  };
+
+  const loadActiveTrip = async (tripId) => {
+    try {
+      const response = await fetch(`${API_URL}/api/trips/${tripId}`);
+      if (response.ok) {
+        const trip = await response.json();
+        setActiveTrip(trip);
+      }
+    } catch (err) {
+      console.error('Error actualizando viaje activo', err);
+    }
+  };
+
+  useEffect(() => {
+    loadTrips();
+  }, [user.id]);
+
+  useEffect(() => {
+    if (!activeTrip) return;
+    const interval = setInterval(() => {
+      loadActiveTrip(activeTrip.id);
+      loadTrips();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeTrip]);
 
   const requestTrip = async () => {
     if (!pickupAddress || !dropoffAddress) {
-      alert('Por favor completa los campos');
+      setStatusMessage('Por favor completa los campos');
       return;
     }
 
@@ -31,30 +70,24 @@ const Dashboard = ({ user, onLogout }) => {
       });
 
       if (response.ok) {
-        const trip = await response.json();
-        setActiveTrip(trip.trip);
-        setEstimatedFare(trip.trip.fare);
-        setTrips([trip.trip, ...trips]);
+        const data = await response.json();
+        setActiveTrip(data.trip);
+        setTrips([data.trip, ...trips]);
         setPickupAddress('');
         setDropoffAddress('');
+        setStatusMessage('Viaje solicitado correctamente. Esperando aceptación de conductor.');
+      } else {
+        const errorData = await response.json();
+        setStatusMessage(errorData.error || 'Error al solicitar viaje');
       }
     } catch (err) {
-      alert('Error al solicitar viaje');
+      setStatusMessage('Error de conexión al solicitar viaje');
     }
   };
 
   const cancelTrip = () => {
     setActiveTrip(null);
-    setEstimatedFare(null);
-  };
-
-  const simulateAcceptance = () => {
-    if (activeTrip) {
-      setActiveTrip({ ...activeTrip, status: 'accepted' });
-      setTimeout(() => {
-        setActiveTrip({ ...activeTrip, status: 'ongoing' });
-      }, 2000);
-    }
+    setStatusMessage('Viaje cancelado localmente. Refresca para ver cambios en el servidor.');
   };
 
   return (
@@ -87,43 +120,44 @@ const Dashboard = ({ user, onLogout }) => {
 
             <div className="request-form">
               <h2>Solicitar Viaje</h2>
-              
+              {statusMessage && <div className="status-message">{statusMessage}</div>}
               {activeTrip ? (
                 <div className="trip-status">
                   <h3>Estado del Viaje: <span className={`status-${activeTrip.status}`}>{activeTrip.status}</span></h3>
-                  
                   <div className="trip-info">
                     <p><strong>Origen:</strong> {activeTrip.pickupAddress}</p>
                     <p><strong>Destino:</strong> {activeTrip.dropoffAddress}</p>
-                    <p><strong>Tarifa estimada:</strong> ${estimatedFare?.toFixed(2)}</p>
+                    <p><strong>Tarifa:</strong> ARS {activeTrip.fare?.toFixed(2)}</p>
+                    {activeTrip.distance != null && <p><strong>Distancia estimada:</strong> {activeTrip.distance} km</p>}
                   </div>
-
+                  {activeTrip.driverSnapshot && (
+                    <div className="driver-info">
+                      <h4>Datos del conductor</h4>
+                      <p><strong>Nombre:</strong> {activeTrip.driverSnapshot.name}</p>
+                      <p><strong>Moto:</strong> {activeTrip.driverSnapshot.vehicleBrand} {activeTrip.driverSnapshot.vehicleModel} - {activeTrip.driverSnapshot.vehicleColor} ({activeTrip.driverSnapshot.cc} cc)</p>
+                      <p><strong>Patente:</strong> {activeTrip.driverSnapshot.hasPlate ? 'SI' : 'NO'}</p>
+                      <p><strong>Casco conductor:</strong> {activeTrip.driverSnapshot.hasHelmetDriver ? 'SI' : 'NO'}</p>
+                      <p><strong>Casco acompañante:</strong> {activeTrip.driverSnapshot.hasHelmetPassenger ? 'SI' : 'NO'}</p>
+                      <p><strong>Seguro:</strong> {activeTrip.driverSnapshot.hasInsurance ? `SI (${activeTrip.driverSnapshot.insuranceType || 'Tipo no especificado'})` : 'NO'}</p>
+                      <p><strong>Carnet de conducir:</strong> {activeTrip.driverSnapshot.drivingLicense}</p>
+                      <p><strong>Último servicio:</strong> {activeTrip.driverSnapshot.lastService}</p>
+                    </div>
+                  )}
                   {activeTrip.status === 'requested' && (
                     <div className="trip-actions">
-                      <div className="waiting">
-                        <p>⏳ Esperando conductor...</p>
-                        <button onClick={simulateAcceptance} className="simulate-btn">
-                          Simular Aceptación
-                        </button>
-                      </div>
+                      <p>⏳ Esperando que un conductor acepte tu pedido...</p>
                     </div>
                   )}
-
                   {activeTrip.status === 'accepted' && (
                     <div className="trip-actions">
-                      <p>✅ ¡Conductor en camino!</p>
-                      <p>Tiempo estimado: 5 minutos</p>
+                      <p>✅ Conductor asignado. Prepárate para el viaje.</p>
                     </div>
                   )}
-
                   {activeTrip.status === 'ongoing' && (
                     <div className="trip-actions">
-                      <p>🚗 ¡Viaje en progreso!</p>
-                      <p>Conductor: Carlos Rodriguez</p>
-                      <p>Vehículo: Yamaha YZF 150</p>
+                      <p>🚗 Tu viaje ya comenzó.</p>
                     </div>
                   )}
-
                   <button onClick={cancelTrip} className="cancel-btn">
                     Cancelar Viaje
                   </button>
@@ -139,7 +173,6 @@ const Dashboard = ({ user, onLogout }) => {
                       onChange={(e) => setPickupAddress(e.target.value)}
                     />
                   </div>
-
                   <div className="input-group">
                     <label>🎯 Ubicación de Destino</label>
                     <input
@@ -149,7 +182,6 @@ const Dashboard = ({ user, onLogout }) => {
                       onChange={(e) => setDropoffAddress(e.target.value)}
                     />
                   </div>
-
                   <button onClick={requestTrip} className="request-btn">
                     Solicitar Viaje
                   </button>
@@ -162,7 +194,7 @@ const Dashboard = ({ user, onLogout }) => {
               <ul>
                 <li>✅ Rápido y eficiente</li>
                 <li>✅ Conductores certificados</li>
-                <li>✅ Precios justos y transparentes</li>
+                <li>✅ Precios en pesos argentinos</li>
                 <li>✅ Seguridad garantizada</li>
                 <li>✅ Soporte 24/7</li>
               </ul>
@@ -179,10 +211,11 @@ const Dashboard = ({ user, onLogout }) => {
                   <div key={trip.id} className="trip-card">
                     <div className="trip-card-header">
                       <span className={`badge ${trip.status}`}>{trip.status}</span>
-                      <span className="fare">${trip.fare?.toFixed(2)}</span>
+                      <span className="fare">ARS {trip.fare?.toFixed(2)}</span>
                     </div>
                     <p><strong>De:</strong> {trip.pickupAddress}</p>
                     <p><strong>A:</strong> {trip.dropoffAddress}</p>
+                    {trip.distance != null && <p><small>{trip.distance} km</small></p>}
                     <p><small>{new Date(trip.createdAt).toLocaleDateString('es-ES')}</small></p>
                   </div>
                 ))}
