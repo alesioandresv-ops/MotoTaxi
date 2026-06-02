@@ -20,6 +20,12 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+
+    // Validación mínima de campos
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
     try {
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
@@ -37,6 +43,11 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
       
       if (response.ok) {
         const data = await response.json();
+        // Auto-login después de registrarse
+        if (data && data.user) {
+          onLogin(data.user);
+          return;
+        }
         alert('Registro exitoso. Por favor, inicia sesión.');
         setIsRegister(false);
         setShowRegister(false);

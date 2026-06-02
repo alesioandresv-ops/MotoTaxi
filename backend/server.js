@@ -2,6 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 const app = express();
 const PORT = 3001;
@@ -16,6 +21,29 @@ const drivers = [];
 const trips = [];
 const ratings = [];
 
+// Cargar datos persistidos si existen
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    const raw = fs.readFileSync(DATA_FILE, 'utf8');
+    const d = JSON.parse(raw || '{}');
+    if (d.users) users.push(...d.users);
+    if (d.drivers) drivers.push(...d.drivers);
+    if (d.trips) trips.push(...d.trips);
+    if (d.ratings) ratings.push(...d.ratings);
+    console.log('Datos cargados desde', DATA_FILE);
+  } catch (err) {
+    console.error('Error cargando datos:', err.message);
+  }
+}
+
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, drivers, trips, ratings }, null, 2));
+  } catch (err) {
+    console.error('Error guardando datos:', err.message);
+  }
+}
+
 // Rutas de Autenticación
 app.post('/api/auth/register', (req, res) => {
   const { name, email, password, userType, phone, vehicle, licenseNumber } = req.body;
@@ -28,11 +56,13 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'El correo ya está registrado' });
   }
 
+  const hashedPassword = bcrypt.hashSync(password, 10);
+
   const user = {
     id: uuidv4(),
     name,
     email,
-    password,
+    password: hashedPassword,
     userType, // 'passenger' o 'driver'
     createdAt: new Date(),
     phone,
@@ -40,6 +70,7 @@ app.post('/api/auth/register', (req, res) => {
   };
 
   users.push(user);
+  saveData();
 
   let userResponse = {
     id: user.id,
@@ -64,6 +95,7 @@ app.post('/api/auth/register', (req, res) => {
     };
 
     drivers.push(driver);
+    saveData();
     userResponse.driverProfile = {
       driverId: driver.id,
       vehicle: driver.vehicle,
@@ -77,10 +109,10 @@ app.post('/api/auth/register', (req, res) => {
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  
-  const user = users.find(u => u.email === email && u.password === password);
-  
-  if (!user) {
+
+  const user = users.find(u => u.email === email);
+
+  if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Email o contraseña incorrectos' });
   }
 
@@ -129,6 +161,7 @@ app.post('/api/drivers/register', (req, res) => {
   };
 
   drivers.push(driver);
+  saveData();
   res.status(201).json({ message: 'Conductor registrado', driver });
 });
 
@@ -144,6 +177,7 @@ app.put('/api/drivers/:driverId/status', (req, res) => {
   const driver = drivers.find(d => d.id === driverId);
   if (driver) {
     driver.isAvailable = isAvailable;
+    saveData();
     res.json({ message: 'Estado actualizado', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
@@ -157,6 +191,7 @@ app.put('/api/drivers/:driverId/location', (req, res) => {
   const driver = drivers.find(d => d.id === driverId);
   if (driver) {
     driver.location = { lat, lng };
+    saveData();
     res.json({ message: 'Ubicación actualizada', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
@@ -189,6 +224,7 @@ app.post('/api/trips/request', (req, res) => {
   };
 
   trips.push(trip);
+  saveData();
   res.status(201).json({ message: 'Viaje solicitado', trip });
 });
 
@@ -198,6 +234,7 @@ app.put('/api/trips/:tripId/accept', (req, res) => {
   const trip = trips.find(t => t.id === tripId);
   if (trip) {
     trip.status = 'accepted';
+    saveData();
     res.json({ message: 'Viaje aceptado', trip });
   } else {
     res.status(404).json({ error: 'Viaje no encontrado' });
@@ -211,6 +248,7 @@ app.put('/api/trips/:tripId/start', (req, res) => {
   if (trip) {
     trip.status = 'ongoing';
     trip.startTime = new Date();
+    saveData();
     res.json({ message: 'Viaje iniciado', trip });
   } else {
     res.status(404).json({ error: 'Viaje no encontrado' });
@@ -224,6 +262,7 @@ app.put('/api/trips/:tripId/complete', (req, res) => {
   if (trip) {
     trip.status = 'completed';
     trip.endTime = new Date();
+    saveData();
     res.json({ message: 'Viaje completado', trip });
   } else {
     res.status(404).json({ error: 'Viaje no encontrado' });
@@ -250,12 +289,14 @@ app.post('/api/ratings', (req, res) => {
   };
 
   ratings.push(ratingObj);
+  saveData();
   
   // Actualizar rating del usuario
   const user = users.find(u => u.id === ratedUserId);
   if (user) {
     const userRatings = ratings.filter(r => r.ratedUserId === ratedUserId);
     user.rating = (userRatings.reduce((sum, r) => sum + r.rating, 0) / userRatings.length).toFixed(1);
+    saveData();
   }
 
   res.status(201).json({ message: 'Calificación registrada', rating: ratingObj });
