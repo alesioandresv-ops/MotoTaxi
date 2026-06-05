@@ -6,10 +6,33 @@ const API_URL = 'http://localhost:3001';
 const Dashboard = ({ user, onLogout }) => {
   const [pickupAddress, setPickupAddress] = useState('');
   const [dropoffAddress, setDropoffAddress] = useState('');
+  const [serviceType, setServiceType] = useState('mototaxi');
+  const [routeType, setRouteType] = useState('local');
+  const [paymentMethod, setPaymentMethod] = useState('efectivo');
   const [activeTrip, setActiveTrip] = useState(null);
   const [trips, setTrips] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [ratingValue, setRatingValue] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+
+  const getMapSrc = () => {
+    const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+    const hasRoute = activeTrip?.pickupAddress && activeTrip?.dropoffAddress;
+    if (apiKey) {
+      const origin = encodeURIComponent(activeTrip?.pickupAddress || 'Buenos Aires, Argentina');
+      const destination = encodeURIComponent(activeTrip?.dropoffAddress || 'Buenos Aires, Argentina');
+      if (hasRoute) {
+        return `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${origin}&destination=${destination}&mode=driving`;
+      }
+      return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${origin}`;
+    }
+
+    const defaultQuery = hasRoute
+      ? encodeURIComponent(`${activeTrip.pickupAddress} to ${activeTrip.dropoffAddress}`)
+      : encodeURIComponent('Buenos Aires, Argentina');
+    return `https://www.google.com/maps?q=${defaultQuery}&output=embed`;
+  };
 
   const loadTrips = async () => {
     try {
@@ -17,7 +40,8 @@ const Dashboard = ({ user, onLogout }) => {
       if (response.ok) {
         const userTrips = await response.json();
         setTrips(userTrips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-        const active = userTrips.find((trip) => ['requested', 'accepted', 'ongoing'].includes(trip.status));
+        const active = userTrips.find((trip) => ['requested', 'accepted', 'ongoing'].includes(trip.status))
+          || userTrips.find((trip) => trip.status === 'completed' && !trip.rated);
         setActiveTrip(active || null);
       }
     } catch (err) {
@@ -50,6 +74,37 @@ const Dashboard = ({ user, onLogout }) => {
     return () => clearInterval(interval);
   }, [activeTrip]);
 
+  const submitRating = async (trip) => {
+    if (!trip || !trip.driverUserId) {
+      setStatusMessage('No se puede calificar este viaje todavía');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/ratings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripId: trip.id,
+          ratedUserId: trip.driverUserId,
+          rating: ratingValue,
+          comment: reviewComment
+        })
+      });
+
+      if (response.ok) {
+        const updatedTrip = { ...trip, rated: true, ratingValue, ratingComment: reviewComment };
+        setActiveTrip(updatedTrip);
+        setTrips(trips.map((t) => (t.id === trip.id ? updatedTrip : t)));
+        setStatusMessage('Gracias por calificar al conductor');
+      } else {
+        setStatusMessage('No se pudo enviar la calificación');
+      }
+    } catch (err) {
+      setStatusMessage('Error de conexión al enviar la calificación');
+    }
+  };
+
   const requestTrip = async () => {
     if (!pickupAddress || !dropoffAddress) {
       setStatusMessage('Por favor completa los campos');
@@ -65,7 +120,10 @@ const Dashboard = ({ user, onLogout }) => {
           pickupAddress,
           dropoffAddress,
           pickupLocation: { lat: 0, lng: 0 },
-          dropoffLocation: { lat: 0, lng: 0 }
+          dropoffLocation: { lat: 0, lng: 0 },
+          paymentMethod,
+          serviceType,
+          routeType
         })
       });
 
@@ -113,9 +171,18 @@ const Dashboard = ({ user, onLogout }) => {
       <div className="dashboard-content">
         {!showHistory ? (
           <div className="ride-request-section">
-            <div className="map-placeholder">
-              <div className="map-icon">📍</div>
-              <p>Mapa en tiempo real</p>
+            <div className="map-container">
+              <iframe
+                title="Mapa de viaje"
+                src={getMapSrc()}
+                allowFullScreen
+                loading="lazy"
+              />
+              {!process.env.REACT_APP_GOOGLE_MAPS_API_KEY && (
+                <div className="map-hint">
+                  Usa un API key de Google Maps en un archivo <code>.env</code> para obtener la mejor vista.
+                </div>
+              )}
             </div>
 
             <div className="request-form">
@@ -127,6 +194,8 @@ const Dashboard = ({ user, onLogout }) => {
                   <div className="trip-info">
                     <p><strong>Origen:</strong> {activeTrip.pickupAddress}</p>
                     <p><strong>Destino:</strong> {activeTrip.dropoffAddress}</p>
+                    <p><strong>Servicio:</strong> {activeTrip.serviceType || 'mototaxi'}</p>
+                    <p><strong>Recorrido:</strong> {activeTrip.routeType === 'local' ? 'Local' : activeTrip.routeType === 'cortaDistancia' ? 'Corta distancia' : 'Larga distancia'}</p>
                     <p><strong>Tarifa:</strong> ARS {activeTrip.fare?.toFixed(2)}</p>
                     {activeTrip.distance != null && <p><strong>Distancia estimada:</strong> {activeTrip.distance} km</p>}
                   </div>
@@ -143,6 +212,13 @@ const Dashboard = ({ user, onLogout }) => {
                       <p><strong>Último servicio:</strong> {activeTrip.driverSnapshot.lastService}</p>
                     </div>
                   )}
+                  <div className="payment-info">
+                    <p><strong>Pago:</strong> {activeTrip.paymentMethod === 'digital' ? 'Pago digital' : 'Efectivo'}</p>
+                    <p><strong>Estado del pago:</strong> {activeTrip.paymentStatus || 'Pendiente'}</p>
+                    {activeTrip.driverLocation && (
+                      <p><strong>Ubicación del conductor:</strong> {activeTrip.driverLocation.lat}, {activeTrip.driverLocation.lng}</p>
+                    )}
+                  </div>
                   {activeTrip.status === 'requested' && (
                     <div className="trip-actions">
                       <p>⏳ Esperando que un conductor acepte tu pedido...</p>
@@ -156,6 +232,37 @@ const Dashboard = ({ user, onLogout }) => {
                   {activeTrip.status === 'ongoing' && (
                     <div className="trip-actions">
                       <p>🚗 Tu viaje ya comenzó.</p>
+                    </div>
+                  )}
+                  {activeTrip.status === 'completed' && !activeTrip.rated && (
+                    <div className="rating-form">
+                      <h4>Calificar viaje</h4>
+                      <div className="input-group">
+                        <label>Puntaje</label>
+                        <select value={ratingValue} onChange={(e) => setRatingValue(Number(e.target.value))}>
+                          {[5, 4, 3, 2, 1].map((score) => (
+                            <option key={score} value={score}>{score} estrella{score > 1 ? 's' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="input-group">
+                        <label>Reseña</label>
+                        <textarea
+                          placeholder="Escribe una reseña sobre el viaje"
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                        />
+                      </div>
+                      <button className="rate-btn" onClick={() => submitRating(activeTrip)}>
+                        Enviar Calificación
+                      </button>
+                    </div>
+                  )}
+                  {activeTrip.status === 'completed' && activeTrip.rated && (
+                    <div className="rating-result">
+                      <h4>Gracias por tu calificación</h4>
+                      <p><strong>Puntaje:</strong> {activeTrip.ratingValue}</p>
+                      {activeTrip.ratingComment && <p><strong>Reseña:</strong> {activeTrip.ratingComment}</p>}
                     </div>
                   )}
                   <button onClick={cancelTrip} className="cancel-btn">
@@ -181,6 +288,29 @@ const Dashboard = ({ user, onLogout }) => {
                       value={dropoffAddress}
                       onChange={(e) => setDropoffAddress(e.target.value)}
                     />
+                  </div>
+                  <div className="input-group">
+                    <label>� Tipo de servicio</label>
+                    <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
+                      <option value="mototaxi">Mototaxi</option>
+                      <option value="taxi">Taxi</option>
+                      <option value="remis">Remis</option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label>🛣️ Tipo de recorrido</label>
+                    <select value={routeType} onChange={(e) => setRouteType(e.target.value)}>
+                      <option value="local">Local</option>
+                      <option value="cortaDistancia">Corta distancia</option>
+                      <option value="largaDistancia">Larga distancia</option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label>�💳 Método de pago</label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="digital">Pago digital</option>
+                    </select>
                   </div>
                   <button onClick={requestTrip} className="request-btn">
                     Solicitar Viaje
@@ -217,6 +347,12 @@ const Dashboard = ({ user, onLogout }) => {
                     <p><strong>A:</strong> {trip.dropoffAddress}</p>
                     {trip.distance != null && <p><small>{trip.distance} km</small></p>}
                     <p><small>{new Date(trip.createdAt).toLocaleDateString('es-ES')}</small></p>
+                    {trip.rated && (
+                      <div className="trip-rating">
+                        <p><strong>Calificación:</strong> {trip.ratingValue} ⭐</p>
+                        {trip.ratingComment && <p><em>{trip.ratingComment}</em></p>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

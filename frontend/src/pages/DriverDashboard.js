@@ -6,7 +6,9 @@ const API_URL = 'http://localhost:3001';
 const DriverDashboard = ({ user, onLogout }) => {
   const driverId = user?.driverProfile?.driverId;
   const [isOnline, setIsOnline] = useState(user?.driverProfile?.isOnline || false);
-  const [fareRate, setFareRate] = useState(user?.driverProfile?.fareRate || 200);
+  const [baseFare, setBaseFare] = useState(200);
+  const [driverLat, setDriverLat] = useState(0);
+  const [driverLng, setDriverLng] = useState(0);
   const [requests, setRequests] = useState([]);
   const [currentTrip, setCurrentTrip] = useState(null);
   const [completedTrips, setCompletedTrips] = useState([]);
@@ -22,7 +24,14 @@ const DriverDashboard = ({ user, onLogout }) => {
         const driverProfile = await profileResponse.json();
         online = driverProfile.isOnline;
         setIsOnline(online);
-        setFareRate(driverProfile.fareRate || 200);
+        setDriverLat(driverProfile.location?.lat || 0);
+        setDriverLng(driverProfile.location?.lng || 0);
+      }
+
+      const fareResponse = await fetch(`${API_URL}/api/fare-policy`);
+      if (fareResponse.ok) {
+        const fareData = await fareResponse.json();
+        setBaseFare(fareData.baseFareRate || 200);
       }
 
       const response = await fetch(`${API_URL}/api/drivers/${driverId}/trips`);
@@ -79,22 +88,6 @@ const DriverDashboard = ({ user, onLogout }) => {
     }
   };
 
-  const saveFareRate = async () => {
-    if (!driverId) return;
-    try {
-      const response = await fetch(`${API_URL}/api/drivers/${driverId}/tarifa`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fareRate })
-      });
-      if (response.ok) {
-        setStatusMessage('Tarifa actualizada a ARS ' + fareRate);
-      }
-    } catch (err) {
-      console.error('Error actualizando tarifa', err);
-    }
-  };
-
   const acceptTrip = async (tripId) => {
     if (!driverId) return;
     try {
@@ -108,6 +101,22 @@ const DriverDashboard = ({ user, onLogout }) => {
       }
     } catch (err) {
       console.error('Error aceptando viaje', err);
+    }
+  };
+
+  const updateDriverLocation = async () => {
+    if (!driverId) return;
+    try {
+      const response = await fetch(`${API_URL}/api/drivers/${driverId}/location`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: Number(driverLat), lng: Number(driverLng) })
+      });
+      if (response.ok) {
+        setStatusMessage('Ubicación actualizada');
+      }
+    } catch (err) {
+      console.error('Error actualizando ubicación', err);
     }
   };
 
@@ -175,21 +184,36 @@ const DriverDashboard = ({ user, onLogout }) => {
           </div>
 
           <div className="fare-card">
-            <h2>Tarifa del conductor</h2>
+            <h2>Tarifa base del servicio</h2>
             <div className="fare-control">
-              <label>Tarifa por km (ARS)</label>
+              <p>Base por km: ARS {baseFare}</p>
+            </div>
+            <p className="fare-note">La tarifa la define el propietario o los administradores con cargo adicional.</p>
+          </div>
+
+          <div className="location-card">
+            <h2>Ubicación en tiempo real</h2>
+            <div className="location-row">
+              <label>Latitud</label>
               <input
                 type="number"
-                min="50"
-                step="10"
-                value={fareRate}
-                onChange={(e) => setFareRate(Number(e.target.value))}
+                step="0.0001"
+                value={driverLat}
+                onChange={(e) => setDriverLat(e.target.value)}
               />
-              <button className="save-fare-btn" onClick={saveFareRate}>
-                Guardar Tarifa
-              </button>
             </div>
-            <p className="fare-note">Tus viajes se calculan en pesos argentinos.</p>
+            <div className="location-row">
+              <label>Longitud</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={driverLng}
+                onChange={(e) => setDriverLng(e.target.value)}
+              />
+            </div>
+            <button className="save-fare-btn" onClick={updateDriverLocation}>
+              Actualizar ubicación
+            </button>
           </div>
 
           {currentTrip ? (
@@ -201,6 +225,9 @@ const DriverDashboard = ({ user, onLogout }) => {
                 <p><strong>Distancia estimada:</strong> {currentTrip.distance} km</p>
                 <p><strong>Tarifa:</strong> ARS {currentTrip.fare.toFixed(2)}</p>
                 <p><strong>Estado:</strong> <span className="trip-status">{currentTrip.status}</span></p>
+                {currentTrip.driverLocation && (
+                  <p><strong>Ubicación actual:</strong> {currentTrip.driverLocation.lat}, {currentTrip.driverLocation.lng}</p>
+                )}
               </div>
               <div className="trip-actions">
                 {currentTrip.status === 'accepted' && (
@@ -257,8 +284,8 @@ const DriverDashboard = ({ user, onLogout }) => {
               <span className="value">ARS {earnings.toFixed(2)}</span>
             </div>
             <div className="stat">
-              <span className="label">Tarifa actual:</span>
-              <span className="value">ARS {fareRate} / km</span>
+              <span className="label">Tarifa base actual:</span>
+              <span className="value">ARS {baseFare} / km</span>
             </div>
           </div>
 

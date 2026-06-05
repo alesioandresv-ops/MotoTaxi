@@ -227,6 +227,7 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
             <select value={userType} onChange={(e) => setUserType(e.target.value)}>
               <option value="passenger">Pasajero</option>
               <option value="driver">Conductor</option>
+              <option value="admin">Administrador</option>
             </select>
             {userType === 'driver' && (
               <>

@@ -3,6 +3,7 @@ import './App.css';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DriverDashboard from './pages/DriverDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -33,6 +34,8 @@ function App() {
         />
       ) : user.userType === 'passenger' ? (
         <Dashboard user={user} onLogout={() => setUser(null)} />
+      ) : user.userType === 'admin' ? (
+        <AdminDashboard user={user} onLogout={() => setUser(null)} />
       ) : (
         <DriverDashboard user={user} onLogout={() => { setUser(null); setShowRegister(false); }} />
       )}
