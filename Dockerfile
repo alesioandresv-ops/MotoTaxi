@@ -9,7 +9,6 @@ RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
 
 RUN chmod -R 755 node_modules/.bin
-
 RUN npx react-scripts build
 
 EXPOSE $PORT
