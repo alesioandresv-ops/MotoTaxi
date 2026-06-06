@@ -1,3 +1,6 @@
+[phases.setup]
+nixPkgs = ["nodejs_24", "npm"]
+
 [phases.build]
 cmds = [
   "cd frontend && npm install --legacy-peer-deps",
