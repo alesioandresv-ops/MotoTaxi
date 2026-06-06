@@ -1,5 +1,9 @@
 [phases.build]
-cmds =["npm install --legacy-peer-deps", "npm run build"]
+cmds = [
+  "cd frontend && npm install --legacy-peer-deps",
+  "cd frontend && npm run build",
+  "cd backend && npm install"
+]
 
 [start]
-cmd = "npm run preview --host 0.0.0.0 --port $PORT"
+cmd = "cd backend && npm start"
