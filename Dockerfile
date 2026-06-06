@@ -5,9 +5,10 @@ WORKDIR /app
 COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
 RUN npm ci --legacy-peer-deps
-RUN chmod -R 755 node_modules/.bin
 
 COPY frontend/ ./
+
+RUN chmod -R 755 node_modules/.bin
 
 RUN npx react-scripts build
 
