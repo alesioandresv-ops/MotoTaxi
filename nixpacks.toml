@@ -1,5 +1,6 @@
 [phases.setup]
 nixPkgs = ["nodejs_20"]
+vars = { FORCE_REBUILD = "20260405" } # agrega esto
 
 [phases.build]
 cmds = [
