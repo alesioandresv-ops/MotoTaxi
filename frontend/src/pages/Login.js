@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Login.css';
+import { API_URL } from '../config';
 
 const Login = ({ onLogin, showRegister, setShowRegister }) => {
   const [email, setEmail] = useState('');
@@ -24,8 +25,6 @@ const Login = ({ onLogin, showRegister, setShowRegister }) => {
   useEffect(() => {
     setIsRegister(showRegister);
   }, [showRegister]);
-
-  const API_URL = 'http://localhost:3001';
 
   const handleRegister = async (e) => {
     e.preventDefault();

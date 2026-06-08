@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './AdminDashboard.css';
-
-const API_URL = 'http://localhost:3001';
+import { API_URL } from '../config';
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [stats, setStats] = useState(null);

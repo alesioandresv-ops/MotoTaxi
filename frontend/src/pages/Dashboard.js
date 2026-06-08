@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
-
-const API_URL = 'http://localhost:3001';
+import { API_URL } from '../config';
 
 const Dashboard = ({ user, onLogout }) => {
   const [pickupAddress, setPickupAddress] = useState('');

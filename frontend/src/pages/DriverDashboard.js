@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './DriverDashboard.css';
-
-const API_URL = 'http://localhost:3001';
+import { API_URL } from '../config';
 
 const DriverDashboard = ({ user, onLogout }) => {
   const driverId = user?.driverProfile?.driverId;
