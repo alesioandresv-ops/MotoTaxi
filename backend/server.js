@@ -3,13 +3,10 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
-const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 
-const DATA_FILE = path.join(__dirname, 'data.json');
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'propietario@mototaxi.com';
-const HOST = process.env.HOST || '0.0.0.0';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,677 +15,501 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Base de datos en memoria
-const users = [];
-const drivers = [];
-const trips = [];
-const ratings = [];
-const farePolicy = {
-  baseFareRate: 200,
-  adminModificationFee: 150,
-  serviceMultipliers: {
-    mototaxi: 1,
-    taxi: 1.2,
-    remis: 1.3,
-    local: 1.1,
-    cortaDistancia: 1.5,
-    largaDistancia: 3
-  },
-  modifications: []
-};
+// Conexión MySQL Railway
+const sequelize = new Sequelize(
+  process.env.MYSQL_DATABASE,
+  process.env.MYSQL_USER,
+  process.env.MYSQL_PASSWORD,
+  {
+    host: process.env.MYSQL_HOST,
+    dialect: 'mysql',
+    port: process.env.MYSQL_PORT || 3306,
+    logging: false,
+    pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
+  }
+);
 
-function estimateDistance(pickupAddress, dropoffAddress, serviceType = 'mototaxi', routeType = 'local') {
-  const base = Math.max(1, Math.round((pickupAddress.length + dropoffAddress.length) / 15));
-  const serviceFactor = farePolicy.serviceMultipliers[serviceType] || 1;
-  const routeFactor = farePolicy.serviceMultipliers[routeType] || 1;
-  return Math.max(1, Math.round(base * serviceFactor * routeFactor));
-}
+// MODELOS
+const Usuario = sequelize.define('Usuario', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  name: DataTypes.STRING,
+  email: { type: DataTypes.STRING, unique: true },
+  password: DataTypes.STRING,
+  userType: DataTypes.STRING,
+  phone: DataTypes.STRING,
+  rating: { type: DataTypes.FLOAT, defaultValue: 5.0 },
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, { tableName: 'usuarios', timestamps: false });
 
+const Driver = sequelize.define('Driver', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  userId: DataTypes.UUID,
+  vehicleBrand: DataTypes.STRING,
+  vehicleModel: DataTypes.STRING,
+  vehicleColor: DataTypes.STRING,
+  cc: DataTypes.STRING,
+  plateNumber: DataTypes.STRING,
+  hasHelmetDriver: DataTypes.BOOLEAN,
+  hasHelmetPassenger: DataTypes.BOOLEAN,
+  hasInsurance: DataTypes.BOOLEAN,
+  insuranceType: DataTypes.STRING,
+  drivingLicense: DataTypes.STRING,
+  lastService: DataTypes.STRING,
+  rating: { type: DataTypes.FLOAT, defaultValue: 5.0 },
+  tripsCompleted: { type: DataTypes.INTEGER, defaultValue: 0 },
+  isOnline: { type: DataTypes.BOOLEAN, defaultValue: false },
+  isAvailable: { type: DataTypes.BOOLEAN, defaultValue: false },
+  location: { type: DataTypes.JSON, defaultValue: { lat: 0, lng: 0 } },
+  fareRate: { type: DataTypes.FLOAT, defaultValue: 200 },
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, { tableName: 'drivers', timestamps: false });
+
+const Trip = sequelize.define('Trip', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  userId: DataTypes.UUID,
+  driverId: DataTypes.UUID,
+  pickupLocation: DataTypes.JSON,
+  dropoffLocation: DataTypes.JSON,
+  pickupAddress: DataTypes.STRING,
+  dropoffAddress: DataTypes.STRING,
+  serviceType: DataTypes.STRING,
+  routeType: DataTypes.STRING,
+  status: DataTypes.STRING,
+  distance: DataTypes.FLOAT,
+  fare: DataTypes.FLOAT,
+  paymentMethod: DataTypes.STRING,
+  paymentStatus: DataTypes.STRING,
+  currency: DataTypes.STRING,
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  startTime: DataTypes.DATE,
+  endTime: DataTypes.DATE,
+  rated: { type: DataTypes.BOOLEAN, defaultValue: false },
+  ratingValue: DataTypes.FLOAT,
+  ratingComment: DataTypes.TEXT,
+  driverLocation: DataTypes.JSON,
+  driverSnapshot: DataTypes.JSON
+}, { tableName: 'trips', timestamps: false });
+
+const Rating = sequelize.define('Rating', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  tripId: DataTypes.UUID,
+  ratedUserId: DataTypes.UUID,
+  rating: DataTypes.FLOAT,
+  comment: DataTypes.TEXT,
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, { tableName: 'ratings', timestamps: false });
+
+const FarePolicy = sequelize.define('FarePolicy', {
+  id: { type: DataTypes.INTEGER, defaultValue: 1, primaryKey: true },
+  baseFareRate: { type: DataTypes.FLOAT, defaultValue: 200 },
+  adminModificationFee: { type: DataTypes.FLOAT, defaultValue: 150 },
+  serviceMultipliers: { type: DataTypes.JSON, defaultValue: { mototaxi: 1, taxi: 1.2, remis: 1.3, local: 1.1, cortaDistancia: 1.5, largaDistancia: 3 } },
+  modifications: { type: DataTypes.JSON, defaultValue: [] }
+}, { tableName: 'fare_policies', timestamps: false });
+
+Usuario.hasOne(Driver, { foreignKey: 'userId' });
+Driver.belongsTo(Usuario, { foreignKey: 'userId' });
+
+sequelize.sync().then(async () => {
+  // Crear farePolicy inicial si no existe
+  await FarePolicy.findOrCreate({ where: { id: 1 }, defaults: {} });
+  console.log('DB sincronizada');
+});
+
+// Helpers
 function formatCurrencyARS(amount) {
   return Number(amount.toFixed(2));
+}
+
+async function estimateDistance(pickupAddress, dropoffAddress, serviceType = 'mototaxi', routeType = 'local') {
+  const policy = await FarePolicy.findByPk(1);
+  const base = Math.max(1, Math.round((pickupAddress.length + dropoffAddress.length) / 15));
+  const serviceFactor = policy.serviceMultipliers[serviceType] || 1;
+  const routeFactor = policy.serviceMultipliers[routeType] || 1;
+  return Math.max(1, Math.round(base * serviceFactor * routeFactor));
 }
 
 function calculateFare(distance, rate) {
   return formatCurrencyARS(Math.max(150, distance * rate));
 }
 
-function isDriverBusy(driverId) {
-  return trips.some(t => t.driverId === driverId && ['accepted', 'ongoing'].includes(t.status));
+async function isDriverBusy(driverId) {
+  const trip = await Trip.findOne({ where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } } });
+  return!!trip;
 }
 
-function getUserById(userId) {
-  return users.find(u => u.id === userId);
+async function getUserById(userId) {
+  return await Usuario.findByPk(userId);
 }
 
-function isFareOwner(user) {
+async function isFareOwner(user) {
   return user && user.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
 }
 
-// Cargar datos persistidos si existen
-if (fs.existsSync(DATA_FILE)) {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8');
-    const d = JSON.parse(raw || '{}');
-    if (d.users) users.push(...d.users);
-    if (d.drivers) drivers.push(...d.drivers);
-    if (d.trips) trips.push(...d.trips);
-    if (d.ratings) ratings.push(...d.ratings);
-    if (d.farePolicy) {
-      Object.assign(farePolicy, d.farePolicy);
-    }
-    console.log('Datos cargados desde', DATA_FILE);
-  } catch (err) {
-    console.error('Error cargando datos:', err.message);
-  }
-}
-
-function saveData() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, drivers, trips, ratings, farePolicy }, null, 2));
-  } catch (err) {
-    console.error('Error guardando datos:', err.message);
-  }
-}
-
 // Rutas de Autenticación
-app.post('/api/auth/register', (req, res) => {
-  const {
-    name,
-    email,
-    password,
-    userType,
-    phone,
-    // driver specific
-    vehicleBrand,
-    vehicleModel,
-    vehicleColor,
-    cc,
-    plateNumber,
-    hasHelmetDriver,
-    hasHelmetPassenger,
-    hasInsurance,
-    insuranceType,
-    drivingLicense,
-    lastService
-  } = req.body;
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, userType, phone, vehicleBrand, vehicleModel, vehicleColor, cc, plateNumber, hasHelmetDriver, hasHelmetPassenger, hasInsurance, insuranceType, drivingLicense, lastService } = req.body;
 
-  if (!name || !email || !password || !userType || !phone) {
-    return res.status(400).json({ error: 'Faltan campos requeridos' });
-  }
-
-  if (users.find(u => u.email === email)) {
-    return res.status(409).json({ error: 'El correo ya está registrado' });
-  }
-
-  if (userType === 'driver') {
-    if (!vehicleBrand || !vehicleModel || !vehicleColor || !cc || !plateNumber || !drivingLicense || !lastService) {
-      return res.status(400).json({ error: 'Faltan datos del vehículo o documentación requerida para el conductor' });
+    if (!name ||!email ||!password ||!userType ||!phone) {
+      return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
 
-    const plateOk = /^[A-Za-z0-9]+$/.test(String(plateNumber));
-    if (!plateOk) {
-      return res.status(400).json({ error: 'Formato de patente inválido. Debe contener letras y/o números.' });
+    const existe = await Usuario.findOne({ where: { email } });
+    if (existe) {
+      return res.status(409).json({ error: 'El correo ya está registrado' });
     }
-  }
 
-  const hashedPassword = bcrypt.hashSync(password, 10);
+    if (userType === 'driver') {
+      if (!vehicleBrand ||!vehicleModel ||!vehicleColor ||!cc ||!plateNumber ||!drivingLicense ||!lastService) {
+        return res.status(400).json({ error: 'Faltan datos del vehículo o documentación requerida' });
+      }
+      const plateOk = /^[A-Za-z0-9]+$/.test(String(plateNumber));
+      if (!plateOk) {
+        return res.status(400).json({ error: 'Formato de patente inválido' });
+      }
+    }
 
-  const user = {
-    id: uuidv4(),
-    name,
-    email,
-    password: hashedPassword,
-    userType, // 'passenger', 'driver' o 'admin'
-    createdAt: new Date(),
-    phone,
-    rating: 5.0
-  };
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const user = await Usuario.create({ name, email, password: hashedPassword, userType, phone });
 
-  users.push(user);
+    let userResponse = { id: user.id, name: user.name, email: user.email, userType: user.userType, rating: user.rating };
 
-  let userResponse = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    userType: user.userType,
-    rating: user.rating
-  };
+    if (userType === 'driver') {
+      const driver = await Driver.create({
+        userId: user.id, vehicleBrand, vehicleModel, vehicleColor, cc, plateNumber,
+        hasHelmetDriver: Boolean(hasHelmetDriver), hasHelmetPassenger: Boolean(hasHelmetPassenger),
+        hasInsurance: Boolean(hasInsurance), insuranceType: hasInsurance? (insuranceType || '') : '',
+        drivingLicense: drivingLicense || '', lastService: lastService || '', phone, fareRate: 200
+      });
 
-  if (userType === 'driver') {
-    const driver = {
-      id: uuidv4(),
-      userId: user.id,
-      vehicleBrand,
-      vehicleModel,
-      vehicleColor,
-      cc,
-      plateNumber,
-      hasHelmetDriver: Boolean(hasHelmetDriver),
-      hasHelmetPassenger: Boolean(hasHelmetPassenger),
-      hasInsurance: Boolean(hasInsurance),
-      insuranceType: hasInsurance ? (insuranceType || '') : '',
-      drivingLicense: drivingLicense || '',
-      lastService: lastService || '',
-      phone,
-      rating: 5.0,
-      tripsCompleted: 0,
-      isOnline: false,
-      isAvailable: false,
-      location: { lat: 0, lng: 0 },
-      fareRate: 200,
-      createdAt: new Date()
-    };
-
-    drivers.push(driver);
-    userResponse.driverProfile = {
-      driverId: driver.id,
-      vehicleBrand: driver.vehicleBrand,
-      vehicleModel: driver.vehicleModel,
-      vehicleColor: driver.vehicleColor,
-      cc: driver.cc,
-      phone: driver.phone,
-      isOnline: driver.isOnline,
-      isAvailable: driver.isAvailable,
-      fareRate: driver.fareRate,
-      plateNumber: driver.plateNumber,
-      drivingLicense: driver.drivingLicense,
-      lastService: driver.lastService
-    };
-  }
-
-  saveData();
-  res.status(201).json({ message: 'Usuario registrado exitosamente', user: userResponse });
-});
-
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-
-  const user = users.find(u => u.email === email);
-
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-  }
-
-  const userResponse = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    userType: user.userType,
-    rating: user.rating
-  };
-
-  if (user.userType === 'driver') {
-    const driver = drivers.find((d) => d.userId === user.id);
-    if (driver) {
       userResponse.driverProfile = {
-        driverId: driver.id,
-        vehicleBrand: driver.vehicleBrand,
-        vehicleModel: driver.vehicleModel,
-        vehicleColor: driver.vehicleColor,
-        cc: driver.cc,
-        plateNumber: driver.plateNumber,
-        phone: driver.phone,
-        isOnline: driver.isOnline,
-        isAvailable: driver.isAvailable,
-        fareRate: driver.fareRate,
-        insuranceType: driver.insuranceType,
-        drivingLicense: driver.drivingLicense,
-        lastService: driver.lastService
+        driverId: driver.id, vehicleBrand: driver.vehicleBrand, vehicleModel: driver.vehicleModel,
+        vehicleColor: driver.vehicleColor, cc: driver.cc, phone: driver.phone,
+        isOnline: driver.isOnline, isAvailable: driver.isAvailable, fareRate: driver.fareRate,
+        plateNumber: driver.plateNumber, drivingLicense: driver.drivingLicense, lastService: driver.lastService
       };
     }
-  }
 
-  res.json({ 
-    message: 'Login exitoso', 
-    user: userResponse
-  });
+    res.status(201).json({ message: 'Usuario registrado exitosamente', user: userResponse });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await Usuario.findOne({ where: { email } });
+
+    if (!user ||!bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+
+    const userResponse = { id: user.id, name: user.name, email: user.email, userType: user.userType, rating: user.rating };
+
+    if (user.userType === 'driver') {
+      const driver = await Driver.findOne({ where: { userId: user.id } });
+      if (driver) {
+        userResponse.driverProfile = {
+          driverId: driver.id, vehicleBrand: driver.vehicleBrand, vehicleModel: driver.vehicleModel,
+          vehicleColor: driver.vehicleColor, cc: driver.cc, plateNumber: driver.plateNumber,
+          phone: driver.phone, isOnline: driver.isOnline, isAvailable: driver.isAvailable,
+          fareRate: driver.fareRate, insuranceType: driver.insuranceType,
+          drivingLicense: driver.drivingLicense, lastService: driver.lastService
+        };
+      }
+    }
+
+    res.json({ message: 'Login exitoso', user: userResponse });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
 });
 
 // Rutas de Conductores
-app.post('/api/drivers/register', (req, res) => {
-  const { userId, vehicle, licenseNumber, phone } = req.body;
-  
-  const driver = {
-    id: uuidv4(),
-    userId,
-    vehicle,
-    licenseNumber,
-    phone,
-    rating: 5.0,
-    tripsCompleted: 0,
-    isAvailable: true,
-    location: { lat: 0, lng: 0 },
-    createdAt: new Date()
-  };
-
-  drivers.push(driver);
-  saveData();
+app.post('/api/drivers/register', async (req, res) => {
+  const { userId, vehicleBrand, vehicleModel, licenseNumber, phone } = req.body;
+  const driver = await Driver.create({ userId, vehicleBrand, vehicleModel, drivingLicense: licenseNumber, phone });
   res.status(201).json({ message: 'Conductor registrado', driver });
 });
 
-app.get('/api/drivers/available', (req, res) => {
-  const availableDrivers = drivers.filter(d => d.isAvailable);
+app.get('/api/drivers/available', async (req, res) => {
+  const availableDrivers = await Driver.findAll({ where: { isAvailable: true } });
   res.json(availableDrivers);
 });
 
-app.put('/api/drivers/:driverId/status', (req, res) => {
+app.put('/api/drivers/:driverId/status', async (req, res) => {
   const { driverId } = req.params;
   const { isOnline } = req.body;
-  
-  const driver = drivers.find(d => d.id === driverId);
+  const driver = await Driver.findByPk(driverId);
   if (driver) {
-    driver.isOnline = Boolean(isOnline);
-    driver.isAvailable = driver.isOnline && !isDriverBusy(driverId);
-    saveData();
+    const busy = await isDriverBusy(driverId);
+    await driver.update({ isOnline: Boolean(isOnline), isAvailable: Boolean(isOnline) &&!busy });
     res.json({ message: 'Estado actualizado', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
   }
 });
 
-app.put('/api/drivers/:driverId/tarifa', (req, res) => {
+app.put('/api/drivers/:driverId/tarifa', async (req, res) => {
   const { driverId } = req.params;
   const { fareRate, userId } = req.body;
-  const requestor = getUserById(userId);
-  const driver = drivers.find(d => d.id === driverId);
+  const requestor = await getUserById(userId);
+  const driver = await Driver.findByPk(driverId);
 
-  if (!driver) {
-    return res.status(404).json({ error: 'Conductor no encontrado' });
+  if (!driver) return res.status(404).json({ error: 'Conductor no encontrado' });
+  if (!requestor ||!await isFareOwner(requestor)) {
+    return res.status(403).json({ error: 'Solo el propietario puede modificar la tarifa' });
   }
 
-  if (!requestor || !isFareOwner(requestor)) {
-    return res.status(403).json({ error: 'Solo el propietario puede modificar la tarifa de conductor.' });
-  }
-
-  driver.fareRate = Number(fareRate) || driver.fareRate;
-  saveData();
-  res.json({ message: 'Tarifa actualizada por propietario', driver });
+  await driver.update({ fareRate: Number(fareRate) || driver.fareRate });
+  res.json({ message: 'Tarifa actualizada', driver });
 });
 
-app.put('/api/drivers/:driverId/location', (req, res) => {
+app.put('/api/drivers/:driverId/location', async (req, res) => {
   const { driverId } = req.params;
   const { lat, lng } = req.body;
-  
-  const driver = drivers.find(d => d.id === driverId);
+  const driver = await Driver.findByPk(driverId);
   if (driver) {
-    driver.location = { lat, lng };
-    trips.forEach((t) => {
-      if (t.driverId === driverId && ['accepted', 'ongoing'].includes(t.status)) {
-        t.driverLocation = driver.location;
-      }
-    });
-    saveData();
+    await driver.update({ location: { lat, lng } });
+    await Trip.update({ driverLocation: { lat, lng } }, { where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } } });
     res.json({ message: 'Ubicación actualizada', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
   }
 });
 
-app.get('/api/drivers/:driverId/requests', (req, res) => {
+app.get('/api/drivers/:driverId/requests', async (req, res) => {
   const { driverId } = req.params;
-  const driver = drivers.find(d => d.id === driverId);
-
-  if (!driver) {
-    return res.status(404).json({ error: 'Conductor no encontrado' });
-  }
-
-  if (!driver.isOnline) {
-    return res.json([]);
-  }
-
-  const availableTrips = trips.filter(t => t.status === 'requested');
+  const driver = await Driver.findByPk(driverId);
+  if (!driver) return res.status(404).json({ error: 'Conductor no encontrado' });
+  if (!driver.isOnline) return res.json([]);
+  const availableTrips = await Trip.findAll({ where: { status: 'requested' } });
   res.json(availableTrips);
 });
 
-app.get('/api/drivers/:driverId/trips', (req, res) => {
+app.get('/api/drivers/:driverId/trips', async (req, res) => {
   const { driverId } = req.params;
-  const driverTrips = trips.filter(t => t.driverId === driverId);
+  const driverTrips = await Trip.findAll({ where: { driverId } });
   res.json(driverTrips);
 });
 
-app.get('/api/drivers/:driverId', (req, res) => {
-  const { driverId } = req.params;
-  const driver = drivers.find(d => d.id === driverId);
-  if (driver) {
-    res.json(driver);
-  } else {
-    res.status(404).json({ error: 'Conductor no encontrado' });
-  }
+app.get('/api/drivers/:driverId', async (req, res) => {
+  const driver = await Driver.findByPk(req.params.driverId);
+  driver? res.json(driver) : res.status(404).json({ error: 'Conductor no encontrado' });
 });
 
-app.get('/api/trips/:tripId', (req, res) => {
-  const { tripId } = req.params;
-  const trip = trips.find(t => t.id === tripId);
-  if (trip) {
-    res.json(trip);
-  } else {
-    res.status(404).json({ error: 'Viaje no encontrado' });
-  }
+app.get('/api/trips/:tripId', async (req, res) => {
+  const trip = await Trip.findByPk(req.params.tripId);
+  trip? res.json(trip) : res.status(404).json({ error: 'Viaje no encontrado' });
 });
 
 // Rutas de Viajes
-app.post('/api/trips/request', (req, res) => {
-  const {
-    userId,
-    pickupLocation,
-    dropoffLocation,
-    pickupAddress,
-    dropoffAddress,
-    paymentMethod,
-    serviceType,
-    routeType
-  } = req.body;
-  const passenger = users.find(u => u.id === userId);
+app.post('/api/trips/request', async (req, res) => {
+  const { userId, pickupLocation, dropoffLocation, pickupAddress, dropoffAddress, paymentMethod, serviceType, routeType } = req.body;
+  const passenger = await getUserById(userId);
+  if (!passenger) return res.status(404).json({ error: 'Pasajero no encontrado' });
 
-  if (!passenger) {
-    return res.status(404).json({ error: 'Pasajero no encontrado' });
-  }
-
+  const policy = await FarePolicy.findByPk(1);
   const service = serviceType || 'mototaxi';
   const route = routeType || 'local';
-  const distance = estimateDistance(pickupAddress, dropoffAddress, service, route);
-  const fare = calculateFare(distance, farePolicy.baseFareRate);
+  const distance = await estimateDistance(pickupAddress, dropoffAddress, service, route);
+  const fare = calculateFare(distance, policy.baseFareRate);
 
-  const trip = {
-    id: uuidv4(),
-    userId,
-    driverId: null,
-    pickupLocation,
-    dropoffLocation,
-    pickupAddress,
-    dropoffAddress,
-    serviceType: service,
-    routeType: route,
-    status: 'requested', // requested, accepted, ongoing, completed, cancelled
-    distance,
-    fare,
-    paymentMethod: paymentMethod || 'efectivo',
-    paymentStatus: 'pending',
-    currency: 'ARS',
-    createdAt: new Date(),
-    startTime: null,
-    endTime: null,
-    rated: false
-  };
+  const trip = await Trip.create({
+    userId, pickupLocation, dropoffLocation, pickupAddress, dropoffAddress,
+    serviceType: service, routeType: route, status: 'requested', distance, fare,
+    paymentMethod: paymentMethod || 'efectivo', paymentStatus: 'pending', currency: 'ARS'
+  });
 
-  trips.push(trip);
-  saveData();
   res.status(201).json({ message: 'Viaje solicitado', trip });
 });
 
-app.put('/api/trips/:tripId/accept', (req, res) => {
+app.put('/api/trips/:tripId/accept', async (req, res) => {
   const { tripId } = req.params;
   const { driverId } = req.body;
 
-  const trip = trips.find(t => t.id === tripId);
-  const driver = drivers.find(d => d.id === driverId);
+  const trip = await Trip.findByPk(tripId);
+  const driver = await Driver.findByPk(driverId);
 
-  if (!trip) {
-    return res.status(404).json({ error: 'Viaje no encontrado' });
-  }
+  if (!trip) return res.status(404).json({ error: 'Viaje no encontrado' });
+  if (!driver) return res.status(404).json({ error: 'Conductor no encontrado' });
+  if (!driver.isOnline) return res.status(400).json({ error: 'Conductor offline' });
+  if (trip.status!== 'requested') return res.status(400).json({ error: 'Viaje no disponible' });
 
-  if (!driver) {
-    return res.status(404).json({ error: 'Conductor no encontrado' });
-  }
+  const policy = await FarePolicy.findByPk(1);
+  const userOfDriver = await Usuario.findByPk(driver.userId);
 
-  if (!driver.isOnline) {
-    return res.status(400).json({ error: 'El conductor no está en línea' });
-  }
+  await trip.update({
+    driverId, status: 'accepted',
+    fare: calculateFare(trip.distance || 1, policy.baseFareRate),
+    driverLocation: driver.location,
+    driverSnapshot: {
+      name: userOfDriver? userOfDriver.name : 'Conductor',
+      vehicleBrand: driver.vehicleBrand,
+      vehicleModel: driver.vehicleModel,
+      vehicleColor: driver.vehicleColor,
+      cc: driver.cc,
+      hasPlate: Boolean(driver.plateNumber),
+      hasHelmetDriver: driver.hasHelmetDriver,
+      hasHelmetPassenger: driver.hasHelmetPassenger,
+      hasInsurance: driver.hasInsurance,
+      insuranceType: driver.hasInsurance? driver.insuranceType : '',
+      drivingLicense: driver.drivingLicense,
+      lastService: driver.lastService
+    }
+  });
 
-  if (trip.status !== 'requested') {
-    return res.status(400).json({ error: 'El viaje ya fue aceptado o no está disponible' });
-  }
-
-  trip.driverId = driverId;
-  trip.status = 'accepted';
-  trip.fare = calculateFare(trip.distance || 1, farePolicy.baseFareRate);
-  trip.driverUserId = driver.userId;
-  trip.driverLocation = driver.location;
-  // Attach a public snapshot of driver data for the passenger (hide exact plate number)
-  const userOfDriver = users.find(u => u.id === driver.userId);
-  trip.driverSnapshot = {
-    name: userOfDriver ? userOfDriver.name : 'Conductor',
-    vehicleBrand: driver.vehicleBrand,
-    vehicleModel: driver.vehicleModel,
-    vehicleColor: driver.vehicleColor,
-    cc: driver.cc,
-    hasPlate: Boolean(driver.plateNumber),
-    hasHelmetDriver: driver.hasHelmetDriver,
-    hasHelmetPassenger: driver.hasHelmetPassenger,
-    hasInsurance: driver.hasInsurance,
-    insuranceType: driver.hasInsurance ? driver.insuranceType : '',
-    drivingLicense: driver.drivingLicense,
-    lastService: driver.lastService
-  };
-  driver.isAvailable = false;
-  saveData();
-
+  await driver.update({ isAvailable: false });
   res.json({ message: 'Viaje aceptado', trip });
 });
 
-app.put('/api/trips/:tripId/start', (req, res) => {
-  const { tripId } = req.params;
-  
-  const trip = trips.find(t => t.id === tripId);
+app.put('/api/trips/:tripId/start', async (req, res) => {
+  const trip = await Trip.findByPk(req.params.tripId);
   if (trip) {
-    trip.status = 'ongoing';
-    trip.startTime = new Date();
-    const driver = drivers.find(d => d.id === trip.driverId);
+    await trip.update({ status: 'ongoing', startTime: new Date() });
+    const driver = await Driver.findByPk(trip.driverId);
     if (driver) {
-      driver.isAvailable = false;
-      trip.driverLocation = driver.location;
+      await driver.update({ isAvailable: false });
+      await trip.update({ driverLocation: driver.location });
     }
-    saveData();
     res.json({ message: 'Viaje iniciado', trip });
   } else {
     res.status(404).json({ error: 'Viaje no encontrado' });
   }
 });
 
-app.put('/api/trips/:tripId/complete', (req, res) => {
-  const { tripId } = req.params;
-  
-  const trip = trips.find(t => t.id === tripId);
+app.put('/api/trips/:tripId/complete', async (req, res) => {
+  const trip = await Trip.findByPk(req.params.tripId);
   if (trip) {
-    trip.status = 'completed';
-    trip.endTime = new Date();
-    const driver = drivers.find(d => d.id === trip.driverId);
+    await trip.update({ status: 'completed', endTime: new Date() });
+    const driver = await Driver.findByPk(trip.driverId);
     if (driver) {
-      driver.tripsCompleted = (driver.tripsCompleted || 0) + 1;
-      driver.isAvailable = driver.isOnline && !isDriverBusy(driver.id);
+      await driver.update({
+        tripsCompleted: driver.tripsCompleted + 1,
+        isAvailable: driver.isOnline &&!(await isDriverBusy(driver.id))
+      });
     }
-    saveData();
     res.json({ message: 'Viaje completado', trip });
   } else {
     res.status(404).json({ error: 'Viaje no encontrado' });
   }
 });
 
-app.get('/api/trips/user/:userId', (req, res) => {
-  const { userId } = req.params;
-  const userTrips = trips.filter(t => t.userId === userId);
+app.get('/api/trips/user/:userId', async (req, res) => {
+  const userTrips = await Trip.findAll({ where: { userId: req.params.userId } });
   res.json(userTrips);
 });
 
 // Rutas de Calificaciones
-app.post('/api/ratings', (req, res) => {
+app.post('/api/ratings', async (req, res) => {
   const { tripId, ratedUserId, rating, comment } = req.body;
-  
-  const trip = trips.find(t => t.id === tripId);
-  if (!trip) {
-    return res.status(404).json({ error: 'Viaje no encontrado para calificar' });
-  }
+  const trip = await Trip.findByPk(tripId);
+  if (!trip) return res.status(404).json({ error: 'Viaje no encontrado' });
 
-  const ratingObj = {
-    id: uuidv4(),
-    tripId,
-    ratedUserId,
-    rating,
-    comment,
-    createdAt: new Date()
-  };
+  const ratingObj = await Rating.create({ tripId, ratedUserId, rating, comment });
+  await trip.update({ rated: true, ratingValue: rating, ratingComment: comment });
 
-  ratings.push(ratingObj);
-  if (trip) {
-    trip.rated = true;
-    trip.ratingValue = rating;
-    trip.ratingComment = comment;
-  }
-
-  saveData();
-  
-  const user = users.find(u => u.id === ratedUserId);
-  if (user) {
-    const userRatings = ratings.filter(r => r.ratedUserId === ratedUserId);
-    user.rating = Number((userRatings.reduce((sum, r) => sum + r.rating, 0) / userRatings.length).toFixed(1));
-    saveData();
-  }
+  const userRatings = await Rating.findAll({ where: { ratedUserId } });
+  const avg = userRatings.reduce((sum, r) => sum + r.rating, 0) / userRatings.length;
+  await Usuario.update({ rating: Number(avg.toFixed(1)) }, { where: { id: ratedUserId } });
 
   res.status(201).json({ message: 'Calificación registrada', rating: ratingObj });
 });
 
-app.get('/api/ratings/:userId', (req, res) => {
-  const { userId } = req.params;
-  const userRatings = ratings.filter(r => r.ratedUserId === userId);
+app.get('/api/ratings/:userId', async (req, res) => {
+  const userRatings = await Rating.findAll({ where: { ratedUserId: req.params.userId } });
   res.json(userRatings);
 });
 
-app.get('/api/admin/stats', (req, res) => {
-  const totalPassengers = users.filter(u => u.userType === 'passenger').length;
-  const totalDrivers = drivers.length;
-  const totalAdmins = users.filter(u => u.userType === 'admin').length;
-  const totalTrips = trips.length;
-  const completedTrips = trips.filter(t => t.status === 'completed').length;
-  const totalRevenue = trips.filter(t => t.status === 'completed').reduce((sum, t) => sum + (t.fare || 0), 0);
-  const averageDriverRating = drivers.length ? Number((drivers.reduce((sum, d) => sum + (d.rating || 0), 0) / drivers.length).toFixed(1)) : 0;
-  const averagePassengerRating = users.filter(u => u.userType === 'passenger').length ? Number((users.filter(u => u.userType === 'passenger').reduce((sum, u) => sum + (u.rating || 0), 0) / users.filter(u => u.userType === 'passenger').length).toFixed(1)) : 0;
+// Admin
+app.get('/api/admin/stats', async (req, res) => {
+  const totalPassengers = await Usuario.count({ where: { userType: 'passenger' } });
+  const totalDrivers = await Driver.count();
+  const totalAdmins = await Usuario.count({ where: { userType: 'admin' } });
+  const totalTrips = await Trip.count();
+  const completedTrips = await Trip.count({ where: { status: 'completed' } });
+  const completed = await Trip.findAll({ where: { status: 'completed' } });
+  const totalRevenue = completed.reduce((sum, t) => sum + (t.fare || 0), 0);
+  const drivers = await Driver.findAll();
+  const averageDriverRating = drivers.length? Number((drivers.reduce((sum, d) => sum + (d.rating || 0), 0) / drivers.length).toFixed(1)) : 0;
+  const passengers = await Usuario.findAll({ where: { userType: 'passenger' } });
+  const averagePassengerRating = passengers.length? Number((passengers.reduce((sum, u) => sum + (u.rating || 0), 0) / passengers.length).toFixed(1)) : 0;
+  const policy = await FarePolicy.findByPk(1);
+  const recentTrips = await Trip.findAll({ order: [['createdAt', 'DESC']], limit: 6 });
 
-  res.json({
-    totalPassengers,
-    totalDrivers,
-    totalAdmins,
-    totalTrips,
-    completedTrips,
-    totalRevenue,
-    averageDriverRating,
-    averagePassengerRating,
-    farePolicy,
-    recentTrips: trips.slice(-6).reverse()
-  });
+  res.json({ totalPassengers, totalDrivers, totalAdmins, totalTrips, completedTrips, totalRevenue, averageDriverRating, averagePassengerRating, farePolicy: policy, recentTrips });
 });
 
-app.get('/api/fare-policy', (req, res) => {
-  res.json(farePolicy);
+app.get('/api/fare-policy', async (req, res) => {
+  const policy = await FarePolicy.findByPk(1);
+  res.json(policy);
 });
 
-app.put('/api/fare-policy', (req, res) => {
+app.put('/api/fare-policy', async (req, res) => {
   const { userId, baseFareRate, adminPaidFee } = req.body;
-  const requestor = getUserById(userId);
+  const requestor = await getUserById(userId);
+  const policy = await FarePolicy.findByPk(1);
 
-  if (!requestor) {
-    return res.status(404).json({ error: 'Usuario no encontrado' });
-  }
+  if (!requestor) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  if (isFareOwner(requestor)) {
-    if (typeof baseFareRate === 'number') {
-      farePolicy.baseFareRate = baseFareRate;
-    }
-    if (typeof req.body.adminModificationFee === 'number') {
-      farePolicy.adminModificationFee = req.body.adminModificationFee;
-    }
-    saveData();
-    return res.json({ message: 'Tarifa actualizada por propietario', farePolicy });
+  if (await isFareOwner(requestor)) {
+    await policy.update({
+      baseFareRate: typeof baseFareRate === 'number'? baseFareRate : policy.baseFareRate,
+      adminModificationFee: typeof req.body.adminModificationFee === 'number'? req.body.adminModificationFee : policy.adminModificationFee
+    });
+    return res.json({ message: 'Tarifa actualizada por propietario', farePolicy: policy });
   }
 
   if (requestor.userType === 'admin') {
     if (!adminPaidFee) {
-      return res.status(403).json({ error: 'Los administradores deben pagar un adicional para modificar la tarifa.' });
+      return res.status(403).json({ error: 'Admins deben pagar adicional' });
     }
-
-    const oldRate = farePolicy.baseFareRate;
-    if (typeof baseFareRate === 'number') {
-      farePolicy.baseFareRate = baseFareRate;
-    }
-    farePolicy.modifications.push({
-      id: uuidv4(),
-      adminId: requestor.id,
-      adminEmail: requestor.email,
-      oldRate,
-      newRate: farePolicy.baseFareRate,
-      feeCharged: farePolicy.adminModificationFee,
-      createdAt: new Date()
-    });
-    saveData();
-    return res.json({ message: 'Tarifa modificada por administrador con cargo adicional', farePolicy });
+    const oldRate = policy.baseFareRate;
+    await policy.update({ baseFareRate: typeof baseFareRate === 'number'? baseFareRate : policy.baseFareRate });
+    const mods = [...policy.modifications, {
+      id: uuidv4(), adminId: requestor.id, adminEmail: requestor.email,
+      oldRate, newRate: policy.baseFareRate, feeCharged: policy.adminModificationFee, createdAt: new Date()
+    }];
+    await policy.update({ modifications: mods });
+    return res.json({ message: 'Tarifa modificada por admin', farePolicy: policy });
   }
 
-  res.status(403).json({ error: 'No tienes permiso para modificar la tarifa.' });
+  res.status(403).json({ error: 'Sin permiso' });
 });
 
-app.get('/api/admin/fare-modifications', (req, res) => {
-  res.json(farePolicy.modifications);
+app.get('/api/admin/fare-modifications', async (req, res) => {
+  const policy = await FarePolicy.findByPk(1);
+  res.json(policy.modifications);
 });
 
-app.get('/api/admin/users', (req, res) => {
-  const summary = users.map(u => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    userType: u.userType,
-    rating: u.rating,
-    createdAt: u.createdAt
-  }));
+app.get('/api/admin/users', async (req, res) => {
+  const summary = await Usuario.findAll({ attributes: ['id', 'name', 'email', 'userType', 'rating', 'createdAt'] });
   res.json(summary);
 });
 
-app.get('/api/admin/drivers', (req, res) => {
-  const summary = drivers.map(d => ({
-    id: d.id,
-    userId: d.userId,
-    vehicleBrand: d.vehicleBrand,
-    vehicleModel: d.vehicleModel,
-    isOnline: d.isOnline,
-    fareRate: d.fareRate,
-    tripsCompleted: d.tripsCompleted,
-    rating: d.rating
-  }));
+app.get('/api/admin/drivers', async (req, res) => {
+  const summary = await Driver.findAll({ attributes: ['id', 'userId', 'vehicleBrand', 'vehicleModel', 'isOnline', 'fareRate', 'tripsCompleted', 'rating'] });
   res.json(summary);
 });
 
-// Ruta de prueba
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Servidor de MotoTaxi funcionando',
-    users: users.length,
-    drivers: drivers.length,
-    trips: trips.length
-  });
+// Health
+app.get('/api/health', async (req, res) => {
+  const users = await Usuario.count();
+  const drivers = await Driver.count();
+  const trips = await Trip.count();
+  res.json({ status: 'OK', message: 'Servidor MotoTaxi funcionando', users, drivers, trips });
 });
 
-// Servir archivos estáticos (React)
+// Servir React
 app.use(express.static(path.join(__dirname, '../frontend/build')));
-
-// Ruta para servir el archivo index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
 });
 
-function getLocalIp() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return 'localhost';
-}
-
-app.listen(PORT, HOST, () => {
-  const localIp = getLocalIp();
-  console.log(`🏍️  Servidor de MotoTaxi ejecutándose en http://localhost:${PORT}`);
-  console.log(`📶  Si estás en la misma red, usa http://${localIp}:${PORT}`);
-  console.log(`📊 Estado: http://localhost:${PORT}/api/health`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🏍️ Servidor MotoTaxi en puerto ${PORT}`);
 });

@@ -4,13 +4,13 @@ const getApiUrl = () => {
     return process.env.REACT_APP_API_URL;
   }
 
-  // En desarrollo, detectar la URL basado en el hostname actual
+  // En desarrollo local con react-scripts, usar el backend de localhost:3001
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:3001';
   }
 
-  // Si está en otra IP (celular/red local), usar esa misma IP con puerto 3001
-  return `http://${window.location.hostname}:3001`;
+  // En producción o en una URL pública, asumir el mismo host al servir build desde backend.
+  return window.location.origin;
 };
 
 export const API_URL = getApiUrl();
