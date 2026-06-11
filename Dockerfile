@@ -5,6 +5,7 @@ WORKDIR /app
 COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
 RUN npm ci --legacy-peer-deps
+RUN npm install serve 
 
 COPY frontend/ ./
 
