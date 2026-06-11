@@ -4,9 +4,10 @@
   "description": "Frontend para aplicación de mototaxi tipo Uber",
   "private": true,
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1"
+    "react": "^18.x",
+    "react-dom": "^18.x",
+    "react-scripts": "5.0.1",
+    "serve":"14.2.6"
   },
   "scripts": {
     "start": "react-scripts start",
