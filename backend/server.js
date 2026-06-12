@@ -11,9 +11,23 @@ const OWNER_EMAIL = process.env.OWNER_EMAIL || 'propietario@mototaxi.com';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy (required when behind Railway / proxies) so we can detect original protocol
+app.set('trust proxy', true);
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+
+// En entornos de producción, forzar redireccion a HTTPS si la petición llegó por HTTP
+if (process.env.ENFORCE_HTTPS === 'true' || process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const proto = req.headers['x-forwarded-proto'];
+    if (proto && proto !== 'https') {
+      return res.redirect(`https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
 
 // Conexión MySQL Railway
 const sequelize = new Sequelize(
