@@ -11,18 +11,18 @@ const OWNER_EMAIL = process.env.OWNER_EMAIL || 'propietario@mototaxi.com';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Trust proxy (required when behind Railway / proxies) so we can detect original protocol
+// Trust proxy para Railway
 app.set('trust proxy', true);
 
-// Middleware
+// Middlewares
 app.use(cors());
 app.use(bodyParser.json());
 
-// En entornos de producción, forzar redireccion a HTTPS si la petición llegó por HTTP
+// Forzar HTTPS en producción
 if (process.env.ENFORCE_HTTPS === 'true' || process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     const proto = req.headers['x-forwarded-proto'];
-    if (proto && proto !== 'https') {
+    if (proto && proto!== 'https') {
       return res.redirect(`https://${req.headers.host}${req.url}`);
     }
     next();
@@ -125,7 +125,6 @@ Usuario.hasOne(Driver, { foreignKey: 'userId' });
 Driver.belongsTo(Usuario, { foreignKey: 'userId' });
 
 sequelize.sync().then(async () => {
-  // Crear farePolicy inicial si no existe
   await FarePolicy.findOrCreate({ where: { id: 1 }, defaults: {} });
   console.log('DB sincronizada');
 });
@@ -148,7 +147,7 @@ function calculateFare(distance, rate) {
 }
 
 async function isDriverBusy(driverId) {
-  const trip = await Trip.findOne({ where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } } });
+  const trip = await Trip.findOne({ where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } });
   return!!trip;
 }
 
@@ -160,7 +159,9 @@ async function isFareOwner(user) {
   return user && user.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
 }
 
-// Rutas de Autenticación
+// ========== RUTAS API - VAN PRIMERO ==========
+
+// Auth
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, userType, phone, vehicleBrand, vehicleModel, vehicleColor, cc, plateNumber, hasHelmetDriver, hasHelmetPassenger, hasInsurance, insuranceType, drivingLicense, lastService } = req.body;
@@ -243,7 +244,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Rutas de Conductores
+// Drivers
 app.post('/api/drivers/register', async (req, res) => {
   const { userId, vehicleBrand, vehicleModel, licenseNumber, phone } = req.body;
   const driver = await Driver.create({ userId, vehicleBrand, vehicleModel, drivingLicense: licenseNumber, phone });
@@ -289,7 +290,7 @@ app.put('/api/drivers/:driverId/location', async (req, res) => {
   const driver = await Driver.findByPk(driverId);
   if (driver) {
     await driver.update({ location: { lat, lng } });
-    await Trip.update({ driverLocation: { lat, lng } }, { where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } } });
+    await Trip.update({ driverLocation: { lat, lng } }, { where: { driverId, status: { [Op.in]: ['accepted', 'ongoing'] } });
     res.json({ message: 'Ubicación actualizada', driver });
   } else {
     res.status(404).json({ error: 'Conductor no encontrado' });
@@ -321,7 +322,7 @@ app.get('/api/trips/:tripId', async (req, res) => {
   trip? res.json(trip) : res.status(404).json({ error: 'Viaje no encontrado' });
 });
 
-// Rutas de Viajes
+// Trips
 app.post('/api/trips/request', async (req, res) => {
   const { userId, pickupLocation, dropoffLocation, pickupAddress, dropoffAddress, paymentMethod, serviceType, routeType } = req.body;
   const passenger = await getUserById(userId);
@@ -418,7 +419,7 @@ app.get('/api/trips/user/:userId', async (req, res) => {
   res.json(userTrips);
 });
 
-// Rutas de Calificaciones
+// Ratings
 app.post('/api/ratings', async (req, res) => {
   const { tripId, ratedUserId, rating, comment } = req.body;
   const trip = await Trip.findByPk(tripId);
@@ -510,7 +511,7 @@ app.get('/api/admin/drivers', async (req, res) => {
   res.json(summary);
 });
 
-// Health
+// Health - para test
 app.get('/api/health', async (req, res) => {
   const users = await Usuario.count();
   const drivers = await Driver.count();
@@ -518,10 +519,17 @@ app.get('/api/health', async (req, res) => {
   res.json({ status: 'OK', message: 'Servidor MotoTaxi funcionando', users, drivers, trips });
 });
 
-// Servir React
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+// 404 para API - va antes del static
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `Ruta API no encontrada: ${req.method} ${req.path}` });
+});
+
+// ========== SERVIR REACT - SIEMPRE AL FINAL ==========
+// Ruta corregida para Railway: __dirname = backend, entonces frontend/build queda así
+app.use(express.static(path.join(__dirname, 'frontend/build')));
+
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+  res.sendFile(path.join(__dirname, 'frontend/build/index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
