@@ -4,8 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-EXPOSE 3001
-
-CMD ["python", "app.py"]
+CMD ["python", "backend/app.py"]
