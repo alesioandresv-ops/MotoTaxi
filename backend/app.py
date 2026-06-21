@@ -18,20 +18,9 @@ load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
 
 def create_app():
     app = Flask(__name__, template_folder='templates', static_folder='static')
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-    f"mysql+pymysql://{os.getenv('DB_USER')}:"
-    f"{os.getenv('DB_PASSWORD')}@"
-    f"{os.getenv('DB_HOST')}:"
-    f"{os.getenv('DB_PORT')}/"
-    f"{os.getenv('DB_NAME')}"
-)
-
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret')
-
-    print("DB_HOST =", os.getenv("DB_HOST"))
-    print("DB_PORT =", os.getenv("DB_PORT"))
-    print("DB_USER =", os.getenv("DB_USER"))
-    print("DB_NAME =", os.getenv("DB_NAME"))
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
 
     db.init_app(app)
 
