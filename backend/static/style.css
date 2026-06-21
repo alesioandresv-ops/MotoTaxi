@@ -182,11 +182,12 @@ a.button:hover {
     flex-wrap: wrap;
 }
 
-.demo-btn {
-    width: 48%;
-    border-radius: 18px;
-    font-weight: 700;
-    transition: background 0.2s ease, transform 0.2s ease;
+@media (max-width: 600px) {
+
+    .demo-btn {
+        width: 100%;
+    }
+
 }
 
 .demo-btn.passenger {
@@ -431,243 +432,42 @@ a.button:hover {
     .dashboard-header {
         grid-template-columns: 1fr;
     }
-}
+
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 20px;
 }
 
-.map-placeholder,
-.request-form,
-.info-section,
-.history-section,
-.status-card,
-.pending-trips-card,
-.active-trip-card,
-.stats-card,
-.history-card,
-.info-card {
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
+@media (max-width: 768px) {
 
-.map-placeholder {
-    text-align: center;
-    min-height: 400px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
-
-.map-icon {
-    font-size: 4em;
-    margin-bottom: 20px;
-    animation: bounce 2s infinite;
-}
-
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-
-.request-form h2,
-.info-section h3,
-.history-section h2,
-.status-card h2,
-.pending-trips-card h2,
-.active-trip-card h2,
-.stats-card h3,
-.history-card h3,
-.info-card h3 {
-    margin-top: 0;
-    color: #333;
-}
-
-.input-group {
-    margin-bottom: 20px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #333;
-}
-
-.input-group input,
-.input-group select {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1em;
-}
-
-.input-group input:focus,
-.input-group select:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.request-btn,
-.simulate-btn,
-.cancel-btn,
-.start-btn,
-.complete-btn,
-.accept-btn,
-.online-btn {
-    padding: 15px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.3s;
-}
-
-.request-btn,
-.simulate-btn,
-.start-btn,
-.complete-btn,
-.accept-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    width: 100%;
-}
-
-.request-btn:hover,
-.simulate-btn:hover,
-.start-btn:hover,
-.complete-btn:hover,
-.accept-btn:hover {
-    transform: translateY(-2px);
-}
-
-.cancel-btn {
-    background: #ff6b6b;
-    color: white;
-}
-
-.cancel-btn:hover {
-    background: #ff5252;
-}
-
-.trip-status,
-.trip-info,
-.trip-actions,
-.trip-item,
-.completed-trip,
-.trip-card,
-.trip-details {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-}
-
-.trip-status {
-    border-left: 4px solid #667eea;
-}
-
-.status-badge {
-    font-weight: bold;
-    padding: 4px 12px;
-    border-radius: 20px;
-    display: inline-block;
-}
-
-.status-badge.requested {
-    background: #fff3e0;
-    color: #ff9800;
-}
-
-.status-badge.accepted {
-    background: #e8f5e9;
-    color: #4caf50;
-}
-
-.status-badge.ongoing {
-    background: #e3f2fd;
-    color: #2196f3;
-}
-
-.status-badge.completed {
-    background: #e8f5e9;
-    color: #388e3c;
-}
-
-.trip-card-header,
-.trip-item,
-.status-info {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: center;
-}
-
-.trip-card p,
-.trip-item p,
-.completed-trip p,
-.trip-details p {
-    margin: 8px 0;
-    color: #555;
-}
-
-.info-section ul,
-.history-section ul,
-.info-card ul {
-    list-style: none;
-    padding: 0;
-}
-
-.info-section li,
-.info-card li {
-    padding: 10px 0;
-    color: #555;
-    font-size: 1.05em;
-}
-
-.info-card li:before {
-    content: '✓ ';
-    color: #4caf50;
-    font-weight: bold;
-    margin-right: 5px;
-}
-
-.trips-list {
-    display: grid;
-    gap: 20px;
-}
-
-.trip-item,
-.completed-trip,
-.trip-card {
-    transition: all 0.3s;
-}
-
-.trip-item:hover,
-.trip-card:hover,
-.completed-trip:hover {
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-}
-
-@media (max-width: 900px) {
-    .ride-request-section,
-    .driver-content,
-    .status-info {
-        grid-template-columns: 1fr;
+    body {
+        font-size: 17px;
     }
-}
 
-@media (max-width: 600px) {
-    .login-box,
-    .request-form,
-    .info-section,
-    .history-section,
+    .container {
+        width: calc(100% - 20px);
+        padding: 10px;
+    }
+
+    .dashboard-header {
+        padding: 20px;
+        text-align: center;
+    }
+
+    .header-left h1 {
+        font-size: 2rem;
+    }
+
+    .header-center {
+        justify-content: center;
+    }
+
+    .header-right {
+        justify-content: center;
+    }
+
+    .card-section,
+    .trip-card,
     .status-card,
     .pending-trips-card,
     .active-trip-card,
@@ -675,5 +475,57 @@ a.button:hover {
     .history-card,
     .info-card {
         padding: 20px;
+    }
+
+    input,
+    select,
+    button {
+        min-height: 52px;
+        font-size: 16px;
+    }
+
+    .trip-item {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .logo h1 {
+        font-size: 2rem;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+    }
+
+    h3 {
+        font-size: 1.2rem;
+    }
+
+    p,
+    label,
+    span,
+    li {
+        font-size: 1rem;
+    }
+
+    .login-box {
+        padding: 25px;
+    }
+
+    .dashboard-header {
+        border-radius: 20px;
+    }
+
+    .card,
+    .card-section,
+    .trip-card,
+    .status-card {
+        border-radius: 18px;
     }
 }
