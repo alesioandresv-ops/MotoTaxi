@@ -22,6 +22,8 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
 
+    print("DATABASE_URL =", os.getenv("DATABASE_URL"))
+
     db.init_app(app)
 
     app.register_blueprint(auth_bp)
