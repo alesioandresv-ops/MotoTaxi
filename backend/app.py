@@ -27,6 +27,12 @@ def create_app():
 )
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret')
 
+    print("MYSQLUSER =", os.getenv("MYSQLUSER"))
+    print("MYSQLPASSWORD =", "OK" if os.getenv("MYSQLPASSWORD") else None)
+    print("MYSQLHOST =", os.getenv("MYSQLHOST"))
+    print("MYSQLPORT =", os.getenv("MYSQLPORT"))
+    print("MYSQLDATABASE =", os.getenv("MYSQLDATABASE"))
+
     db.init_app(app)
 
     app.register_blueprint(auth_bp)
