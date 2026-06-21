@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro conductor - MotoTaxi</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="login-container">
+        <div class="login-box" style="max-width: 600px;">
+            <div class="logo">
+                <h1>🏍️ MotoTaxi</h1>
+                <p>Registrarse como conductor</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form class="form" method="post" action="/driver/register">
+                <h3 style="color: #e2e8f0; margin-top: 20px; margin-bottom: 16px;">Información personal</h3>
+                
+                <div class="input-group">
+                    <label>Nombre completo</label>
+                    <input type="text" name="name" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Correo electrónico</label>
+                    <input type="email" name="email" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Contraseña</label>
+                    <input type="password" name="password" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Teléfono</label>
+                    <input type="tel" name="phone" required>
+                </div>
+
+                <h3 style="color: #e2e8f0; margin-top: 24px; margin-bottom: 16px;">Información de la moto</h3>
+
+                <div class="input-group">
+                    <label>Placa (números y letras)</label>
+                    <input type="text" name="placa" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Marca</label>
+                    <input type="text" name="moto_marca" placeholder="Ej: Yamaha" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Modelo</label>
+                    <input type="text" name="moto_modelo" placeholder="Ej: YZF-R3" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Color</label>
+                    <input type="text" name="moto_color" placeholder="Ej: Rojo" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Cilindrada</label>
+                    <input type="text" name="moto_cilindrada" placeholder="Ej: 250cc" required>
+                </div>
+
+                <h3 style="color: #e2e8f0; margin-top: 24px; margin-bottom: 16px;">Documentos y requisitos</h3>
+
+                <div class="input-group">
+                    <label>¿Tienes casco?</label>
+                    <select name="tiene_casco" required>
+                        <option value="">Selecciona</option>
+                        <option value="yes">Sí</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>¿Tienes seguro de la moto?</label>
+                    <select name="seguro_moto" required>
+                        <option value="">Selecciona</option>
+                        <option value="yes">Sí</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Tipo de seguro</label>
+                    <input type="text" name="tipo_seguro" placeholder="Ej: Responsabilidad civil" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Carnet de conducir</label>
+                    <input type="text" name="carnet_conducir" placeholder="Número de carnet" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Último servicio realizado</label>
+                    <input type="text" name="ultimo_servicio" placeholder="Descripción breve" required>
+                </div>
+
+                <button type="submit" style="margin-top: 24px;">Registrar como conductor</button>
+            </form>
+
+            <div style="margin-top: 24px; text-align: center;">
+                <p style="color: var(--text-muted); font-size: 0.9rem;">¿Ya tienes cuenta? <a href="/login" style="color: #c4b5fd; text-decoration: underline;">Inicia sesión</a></p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
