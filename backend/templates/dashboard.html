@@ -1,199 +1,280 @@
-<!doctype html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - MotoTaxi</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <div class="dashboard">
-        <div class="container">
-            {% if user_type == 'passenger' %}
-                <!-- PASSENGER DASHBOARD -->
-                <div class="dashboard-header">
-                    <div class="header-left">
-                        <h1>🏍️ MotoTaxi</h1>
-                    </div>
-                    <div class="header-center">
-                        <span>👤 {{ user_name }}</span>
-                    </div>
-                    <div class="header-right">
-                        <a href="/logout" class="logout-btn">Salir</a>
-                    </div>
-                </div>
+{% extends "base.html" %}
+{% block title %}Dashboard — MotoTaxi{% endblock %}
+{% block content %}
+<div class="dashboard page-transition">
+  <div class="container">
+    {% if user_type == 'passenger' %}
+    <!-- ─── PASSENGER DASHBOARD ─── -->
+    <nav class="navbar">
+      <div class="navbar-brand">🏍️ MotoTaxi</div>
+      <div class="navbar-center">
+        <span class="navbar-user">👤 {{ user_name }}</span>
+      </div>
+      <div class="navbar-actions">
+        <a href="/logout" class="btn btn-ghost btn-sm">Salir</a>
+      </div>
+    </nav>
 
-                <div class="dashboard-content">
-                    <div class="grid-columns">
-                        <!-- Mapa -->
-                        <div class="card-section" style="text-align: center;">
-                            <div style="font-size: 5rem; margin: 40px 0;">📍</div>
-                            <h3 class="section-title">Mapa en tiempo real</h3>
-                            <p style="color: var(--text-muted);">Tu ubicación y la del conductor aparecerá aquí</p>
-                        </div>
-
-                        <!-- Solicitar viaje -->
-                        <div class="card-section">
-                            <h3 class="section-title">Solicitar Viaje</h3>
-                            
-                            {% if current_trip %}
-                                <!-- Estado del viaje -->
-                                <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 18px; padding: 20px; margin-bottom: 20px;">
-                                    <p style="color: #93c5fd; font-weight: 700; margin-bottom: 12px;">Estado del viaje: <span class="status-badge {{ current_trip.status }}">{{ current_trip.status }}</span></p>
-                                    <p style="color: #cbd5e1;"><strong>Origen:</strong> {{ current_trip.pickup_address }}</p>
-                                    <p style="color: #cbd5e1;"><strong>Destino:</strong> {{ current_trip.dropoff_address }}</p>
-                                    <p style="color: #cbd5e1;"><strong>Tarifa:</strong> ${{ current_trip.fare }}</p>
-                                </div>
-
-                                {% if driver_info %}
-                                    <h4 style="color: #e2e8f0; margin-bottom: 16px;">Información del conductor</h4>
-                                    <div style="background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(124, 58, 237, 0.3); border-radius: 18px; padding: 20px;">
-                                        <p style="color: #cbd5e1;"><strong>👤 Nombre:</strong> {{ driver_info.name }}</p>
-                                        <p style="color: #cbd5e1;"><strong>🏍️ Moto:</strong> {{ driver_info.moto_marca }} {{ driver_info.moto_modelo }} - {{ driver_info.moto_color }}</p>
-                                        <p style="color: #cbd5e1;"><strong>⚙️ Cilindrada:</strong> {{ driver_info.moto_cilindrada }}</p>
-                                        <p style="color: #cbd5e1;"><strong>🛡️ Patente:</strong> {{ 'Sí ✓' if driver_info.tiene_patente else 'No ✗' }}</p>
-                                        <p style="color: #cbd5e1;"><strong>🪖 Casco:</strong> {{ 'Sí ✓' if driver_info.tiene_casco else 'No ✗' }}</p>
-                                        <p style="color: #cbd5e1;"><strong>📋 Seguro:</strong> {{ 'Sí ✓' if driver_info.seguro_moto else 'No ✗' }}</p>
-                                        {% if driver_info.seguro_moto %}
-                                            <p style="color: #cbd5e1;"><strong>Tipo:</strong> {{ driver_info.tipo_seguro }}</p>
-                                        {% endif %}
-                                        <p style="color: #cbd5e1;"><strong>📄 Carnet:</strong> {{ driver_info.carnet_conducir }}</p>
-                                        <p style="color: #cbd5e1;"><strong>⭐ Último servicio:</strong> {{ driver_info.ultimo_servicio }}</p>
-                                    </div>
-                                {% else %}
-                                    <p style="color: var(--text-muted); text-align: center; padding: 20px;">⏳ Esperando un conductor...</p>
-                                {% endif %}
-                            {% else %}
-                                <form method="post" action="/passenger/request">
-                                    <div class="input-group">
-                                        <label>Dirección de recogida</label>
-                                        <input type="text" name="pickup_address" placeholder="Ej: Calle Principal 123" required>
-                                    </div>
-
-                                    <div class="input-group">
-                                        <label>Dirección de destino</label>
-                                        <input type="text" name="dropoff_address" placeholder="Ej: Centro Comercial" required>
-                                    </div>
-
-                                    <button type="submit" class="request-btn">Solicitar Viaje</button>
-                                </form>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <!-- Historial -->
-                    <div class="card-section">
-                        <h3 class="section-title">Historial de Viajes</h3>
-                        {% if history_trips %}
-                            <div class="trips-list">
-                                {% for trip in history_trips %}
-                                    <div class="trip-item">
-                                        <div>
-                                            <p style="color: #e2e8f0;"><strong>📍 {{ trip.pickup_address }}</strong></p>
-                                            <p style="color: #cbd5e1;">→ {{ trip.dropoff_address }}</p>
-                                            <p style="color: var(--text-muted); font-size: 0.85rem;">{{ trip.requested_at.strftime('%d/%m/%Y') }}</p>
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <p style="color: #e2e8f0; font-weight: 700; font-size: 1.2rem;">${{ "%.2f"|format(trip.fare) }}</p>
-                                            <span class="status-badge {{ trip.status }}">{{ trip.status }}</span>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p style="color: var(--text-muted); text-align: center; padding: 40px;">No tienes viajes aún</p>
-                        {% endif %}
-                    </div>
-                </div>
-            {% elif user_type == 'driver' %}
-                <!-- DRIVER DASHBOARD -->
-                <div class="dashboard-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
-                    <div class="header-left">
-                        <h1>🏍️ MotoTaxi Conductor</h1>
-                    </div>
-                    <div class="header-center">
-                        <span>👤 {{ user_name }}</span>
-                    </div>
-                    <div class="header-right">
-                        <a href="/logout" class="logout-btn">Salir</a>
-                    </div>
-                </div>
-
-                <div class="dashboard-content">
-                    <div class="grid-columns">
-                        <!-- Viajes disponibles -->
-                        <div class="card-section">
-                            <h3 class="section-title">Viajes Disponibles ({{ available_trips|length }})</h3>
-                            {% if available_trips %}
-                                <div class="trips-list">
-                                    {% for trip in available_trips %}
-                                        <div class="trip-item">
-                                            <div>
-                                                <p style="color: #e2e8f0;"><strong>📍 {{ trip.pickup_address }}</strong></p>
-                                                <p style="color: #cbd5e1;">→ {{ trip.dropoff_address }}</p>
-                                            </div>
-                                            <div style="text-align: right;">
-                                                <p style="color: #e2e8f0; font-weight: 700; font-size: 1.2rem;">${{ "%.2f"|format(trip.fare) }}</p>
-                                                <a href="/driver/accept/{{ trip.id }}" style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; border-radius: 14px; font-weight: 700; font-size: 0.9rem; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">Aceptar</a>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p style="color: var(--text-muted); text-align: center; padding: 40px;">No hay viajes disponibles en este momento</p>
-                            {% endif %}
-                        </div>
-
-                        <!-- Viaje activo -->
-                        {% if active_trip %}
-                            <div class="card-section" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05)); border: 1px solid rgba(34, 197, 94, 0.3);">
-                                <h3 class="section-title">Viaje en Curso</h3>
-                                <p style="color: #86efac; font-weight: 700; margin-bottom: 12px;">🟢 En progreso</p>
-                                <p style="color: #cbd5e1;"><strong>📍 Origen:</strong> {{ active_trip.pickup_address }}</p>
-                                <p style="color: #cbd5e1;"><strong>🎯 Destino:</strong> {{ active_trip.dropoff_address }}</p>
-                                <p style="color: #cbd5e1;"><strong>💰 Tarifa:</strong> ${{ active_trip.fare }}</p>
-                                <p style="color: #cbd5e1;"><strong>Estado:</strong> {{ active_trip.status }}</p>
-                                <a href="/driver/complete/{{ active_trip.id }}" style="display: inline-block; padding: 12px 20px; background: linear-gradient(135deg, #4f46e5 0%, #8b5cf6 100%); color: white; border-radius: 14px; font-weight: 700; margin-top: 16px; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">✅ Completar viaje</a>
-                            </div>
-                        {% else %}
-                            <div class="card-section">
-                                <h3 class="section-title">Sin viaje activo</h3>
-                                <p style="color: var(--text-muted); text-align: center; padding: 40px;">⚫ Fuera de servicio</p>
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Viajes completados -->
-                    <div class="card-section">
-                        <h3 class="section-title">Viajes Completados ({{ completed_trips|length }})</h3>
-                        {% if completed_trips %}
-                            <div class="trips-list">
-                                {% for trip in completed_trips %}
-                                    <div class="trip-item">
-                                        <div>
-                                            <p style="color: #e2e8f0;"><strong>📍 {{ trip.pickup_address }}</strong></p>
-                                            <p style="color: #cbd5e1;">→ {{ trip.dropoff_address }}</p>
-                                            <p style="color: var(--text-muted); font-size: 0.85rem;">{{ trip.requested_at.strftime('%d/%m/%Y') }}</p>
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <p style="color: #86efac; font-weight: 700; font-size: 1.2rem;">${{ "%.2f"|format(trip.fare) }}</p>
-                                            <span class="status-badge completed">completado</span>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p style="color: var(--text-muted); text-align: center; padding: 40px;">No tienes viajes completados aún</p>
-                        {% endif %}
-                    </div>
-                </div>
-            {% else %}
-                <div class="card-section" style="text-align: center; padding: 60px 20px;">
-                    <h2 style="color: #e2e8f0;">No has iniciado sesión</h2>
-                    <p style="color: var(--text-muted); margin: 16px 0;"><a href="/login" style="color: #60a5fa; text-decoration: underline;">Inicia sesión aquí</a></p>
-                </div>
-            {% endif %}
+    <div class="dashboard-content">
+      {% if current_trip %}
+      <!-- Active trip -->
+      <div class="card card-highlight page-transition" id="active-trip-section">
+        <div class="card-title">
+          {% if current_trip.status == 'requested' %}
+          ⏳ Esperando conductor
+          {% elif current_trip.status == 'accepted' %}
+          ✅ Conductor asignado
+          {% elif current_trip.status == 'ongoing' %}
+          🚗 Viaje en curso
+          {% endif %}
         </div>
+
+        <div style="display:grid;gap:16px;">
+          <div class="trip-item">
+            <div class="trip-item-info">
+              <p><strong>📍 Origen:</strong> {{ current_trip.pickup_address }}</p>
+              <p><strong>🎯 Destino:</strong> {{ current_trip.dropoff_address }}</p>
+              <p><strong>💰 Tarifa:</strong> <span style="color:var(--primary-light);font-weight:700;">${{ "%.2f"|format(current_trip.fare) }}</span></p>
+            </div>
+            <div class="trip-item-right">
+              <span class="badge badge-{{ current_trip.status }}">{{ current_trip.status }}</span>
+            </div>
+          </div>
+
+          {% if driver_info %}
+          <div class="driver-info-card" id="driver-info">
+            <h4>🏍️ Información del conductor</h4>
+            <div class="driver-info-grid">
+              <p><strong>Nombre:</strong> {{ driver_info.name }}</p>
+              <p><strong>Moto:</strong> {{ driver_info.moto_marca }} {{ driver_info.moto_modelo }}</p>
+              <p><strong>Color:</strong> {{ driver_info.moto_color }}</p>
+              <p><strong>Placa:</strong> {{ driver_info.placa }}</p>
+              <p><strong>Cilindrada:</strong> {{ driver_info.moto_cilindrada }}</p>
+              <p><strong>Casco:</strong> {{ 'Sí ✓' if driver_info.tiene_casco else 'No ✗' }}</p>
+              <p><strong>Seguro:</strong> {{ 'Sí ✓' if driver_info.seguro_moto else 'No ✗' }}</p>
+              <p><strong>Carnet:</strong> {{ driver_info.carnet_conducir }}</p>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if current_trip.status == 'requested' %}
+      <div class="waiting-indicator" id="waiting-animation">
+        <div class="spinner"></div>
+        <p style="color:var(--text-muted);">Buscando conductores cercanos...</p>
+      </div>
+      {% endif %}
+      {% else %}
+      <!-- Request form -->
+      <div class="card card-highlight">
+        <div class="card-title">Solicitar Viaje</div>
+        <form class="form" method="post" action="/passenger/request">
+          <div class="input-group">
+            <label>Dirección de recogida</label>
+            <input type="text" name="pickup_address" required placeholder="Ej: Calle Principal 123">
+          </div>
+          <div class="input-group">
+            <label>Dirección de destino</label>
+            <input type="text" name="dropoff_address" required placeholder="Ej: Centro Comercial">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Solicitar Viaje</button>
+        </form>
+      </div>
+      {% endif %}
+
+      <!-- History -->
+      <div class="card">
+        <div class="card-title">Historial de Viajes</div>
+        {% if history_trips %}
+        <div class="trip-list">
+          {% for trip in history_trips %}
+          <div class="trip-item">
+            <div class="trip-item-info">
+              <p><strong>📍 {{ trip.pickup_address }}</strong></p>
+              <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
+              <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%d/%m/%Y %H:%M') }}</p>
+            </div>
+            <div class="trip-item-right">
+              <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
+              <span class="badge badge-{{ trip.status }}">{{ trip.status }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <p>No tienes viajes aún</p>
+        </div>
+        {% endif %}
+      </div>
     </div>
-</body>
-</html>
+
+    {% elif user_type == 'driver' %}
+    <!-- ─── DRIVER DASHBOARD ─── -->
+    <nav class="navbar">
+      <div class="navbar-brand">🏍️ MotoTaxi Conductor</div>
+      <div class="navbar-center">
+        <span class="navbar-user">👤 {{ user_name }}</span>
+      </div>
+      <div class="navbar-actions">
+        <a href="/logout" class="btn btn-ghost btn-sm">Salir</a>
+      </div>
+    </nav>
+
+    <div class="dashboard-content">
+      <!-- Stats -->
+      <div class="card">
+        <div class="card-title">Panel de control</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value" id="completed-count">{{ completed_trips|length }}</span>
+            <span class="stat-label">Viajes hoy</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">$<span id="earnings-count">{{ "%.2f"|format(completed_trips|sum(attribute='fare')) }}</span></span>
+            <span class="stat-label">Ganancias</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="available-count">{{ available_trips|length }}</span>
+            <span class="stat-label">Disponibles</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid-3">
+        <!-- Available trips -->
+        <div class="card">
+          <div class="card-title">Viajes Disponibles <span class="badge badge-requested" id="available-badge" style="font-size:0.75rem;vertical-align:middle;">{{ available_trips|length }}</span></div>
+          {% if available_trips %}
+          <div class="trip-list" id="available-trips-list">
+            {% for trip in available_trips %}
+            <div class="trip-item" id="trip-{{ trip.id }}">
+              <div class="trip-item-info">
+                <p><strong>📍 {{ trip.pickup_address }}</strong></p>
+                <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
+                <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%H:%M') }}</p>
+              </div>
+              <div class="trip-item-right">
+                <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
+                <a href="/driver/accept/{{ trip.id }}" class="btn btn-success btn-sm" style="margin-top:8px;">Aceptar</a>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state" id="no-trips-available">
+            <div class="icon">🛵</div>
+            <p>No hay viajes disponibles</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Active trip -->
+        <div>
+          {% if active_trip %}
+          <div class="card card-success" id="active-trip-card">
+            <div class="card-title">🟢 Viaje Activo</div>
+            <div style="display:grid;gap:12px;">
+              <div class="trip-item">
+                <div class="trip-item-info">
+                  <p><strong>📍 {{ active_trip.pickup_address }}</strong></p>
+                  <p style="color:var(--text-muted);">→ {{ active_trip.dropoff_address }}</p>
+                  <p><strong>💰 ${{ "%.2f"|format(active_trip.fare) }}</strong></p>
+                  <p><span class="badge badge-{{ active_trip.status }}">{{ active_trip.status }}</span></p>
+                </div>
+              </div>
+              {% if active_trip.status == 'accepted' or active_trip.status == 'ongoing' %}
+              <a href="/driver/complete/{{ active_trip.id }}" class="btn btn-success btn-lg btn-block">✅ Completar viaje</a>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="card">
+            <div class="card-title">⚫ Sin viaje activo</div>
+            <div class="empty-state">
+              <div class="icon">💤</div>
+              <p>Esperando solicitudes...</p>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Completed trips -->
+          {% if completed_trips %}
+          <div class="card" style="margin-top:24px;">
+            <div class="card-title">Completados ({{ completed_trips|length }})</div>
+            <div class="trip-list">
+              {% for trip in completed_trips %}
+              <div class="trip-item">
+                <div class="trip-item-info">
+                  <p style="font-size:0.85rem;"><strong>{{ trip.pickup_address }}</strong> → <span style="color:var(--text-muted);">{{ trip.dropoff_address }}</span></p>
+                  <p style="font-size:0.75rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%d/%m/%Y') }}</p>
+                </div>
+                <div class="trip-item-right">
+                  <span style="color:var(--success);font-weight:700;">${{ "%.2f"|format(trip.fare) }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ─── Auto-refresh for passenger: poll trip status ───
+{% if user_type == 'passenger' and current_trip and current_trip.status != 'completed' %}
+(function pollPassenger() {
+  fetch('/api/trip/{{ current_trip.id }}/status')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) return;
+      if (data.status !== '{{ current_trip.status }}') {
+        showToast('¡Tu viaje ha cambiado a: ' + data.status + '!', 'success');
+        setTimeout(function () { window.location.reload(); }, 1500);
+      }
+    })
+    .catch(function () {});
+  setTimeout(pollPassenger, 5000);
+})();
+{% endif %}
+
+// ─── Auto-refresh for driver: poll available trips ───
+{% if user_type == 'driver' and not active_trip %}
+(function pollDriver() {
+  fetch('/api/trips/available')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) return;
+      var list = document.getElementById('available-trips-list');
+      var empty = document.getElementById('no-trips-available');
+      var badge = document.getElementById('available-badge');
+      var countEl = document.getElementById('available-count');
+      var oldCount = parseInt((badge ? badge.textContent : '0') || '0');
+
+      if (badge) badge.textContent = data.count;
+      if (countEl) countEl.textContent = data.count;
+
+      if (data.count > oldCount && oldCount > 0) {
+        showToast('🔔 Nuevo viaje disponible', 'info');
+      }
+
+      // If we have no trips and now we do (or vice versa), reload
+      var hasTrips = list && list.children.length > 0;
+      if ((data.count > 0 && !hasTrips) || (data.count === 0 && hasTrips)) {
+        window.location.reload();
+      }
+    })
+    .catch(function () {});
+  setTimeout(pollDriver, 5000);
+})();
+{% endif %}
+</script>
+{% endblock %}

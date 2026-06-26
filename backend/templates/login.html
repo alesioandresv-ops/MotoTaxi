@@ -1,67 +1,51 @@
-<!doctype html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión - MotoTaxi</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <main class="login-container">
-        <div class="login-box">
-            <div class="logo">
-                <h1>🏍️ MotoTaxi</h1>
-                <p>Tu plataforma confiable de mototaxi</p>
-            </div>
+{% extends "base.html" %}
+{% block title %}Iniciar sesión — MotoTaxi{% endblock %}
+{% block content %}
+<main class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="icon">🏍️</span>
+      <h1>MotoTaxi</h1>
+      <p>Tu plataforma confiable de mototaxi</p>
+    </div>
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash-message" style="background: {% if category == 'danger' %}#ef4444{% elif category == 'success' %}#22c55e{% else %}#3b82f6{% endif %};">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+    <form class="form" method="post" action="/login">
+      <h2>Inicia Sesión</h2>
 
-            <form class="form" method="post" action="/login">
-                <h2>Inicia Sesión</h2>
-                
-                <div class="input-group">
-                    <label for="email">Correo electrónico</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
+      <div class="input-group">
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" name="email" required placeholder="tu@correo.com">
+      </div>
 
-                <div class="input-group">
-                    <label for="password">Contraseña</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
+      <div class="input-group">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required placeholder="••••••••">
+      </div>
 
-                <button type="submit">Inicia Sesión</button>
-            </form>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">Inicia Sesión</button>
+    </form>
 
-            <div style="margin-top: 24px; text-align: center;">
-                <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;">¿No tienes cuenta?</p>
-                <div style="display: flex; gap: 12px; flex-direction: column;">
-                    <a href="/register" style="padding: 12px 16px; border-radius: 16px; border: 1px solid rgba(148, 163, 184, 0.3); color: #60a5fa; transition: all 0.2s;">Registrarse como pasajero</a>
-                    <a href="/driver/register" style="padding: 12px 16px; border-radius: 16px; border: 1px solid rgba(148, 163, 184, 0.3); color: #c4b5fd; transition: all 0.2s;">Registrarse como conductor</a>
-                </div>
-            </div>
+    <div class="links-row">
+      <p class="muted">¿No tienes cuenta?</p>
+      <a href="/register">Registrarse como pasajero</a>
+      <a href="/driver/register">Registrarse como conductor</a>
+    </div>
 
-            <div style="margin-top: 28px; padding-top: 28px; border-top: 1px solid rgba(148, 163, 184, 0.12); text-align: center;">
-                <p style="color: var(--text-muted); margin-bottom: 14px; font-size: 0.9rem;">O prueba con demo:</p>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <form method="post" action="/login" style="flex: 1; min-width: 140px;">
-                        <input type="hidden" name="email" value="pasajero@demo.com">
-                        <input type="hidden" name="password" value="1234">
-                        <button type="submit" style="width: 100%; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); padding: 12px;">👤 Demo Pasajero</button>
-                    </form>
-                    <form method="post" action="/login" style="flex: 1; min-width: 140px;">
-                        <input type="hidden" name="email" value="conductor@demo.com">
-                        <input type="hidden" name="password" value="1234">
-                        <button type="submit" style="width: 100%; background: rgba(124, 58, 237, 0.2); color: #c4b5fd; border: 1px solid rgba(124, 58, 237, 0.4); padding: 12px;">🏍️ Demo Conductor</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </main>
-</body>
-</html>
+    <div class="demo-section">
+      <p>O prueba con cuentas demo:</p>
+      <div class="demo-buttons">
+        <form method="post" action="/login" style="flex:1;">
+          <input type="hidden" name="email" value="pasajero@demo.com">
+          <input type="hidden" name="password" value="1234">
+          <button type="submit" class="demo-btn passenger">👤 Demo Pasajero</button>
+        </form>
+        <form method="post" action="/login" style="flex:1;">
+          <input type="hidden" name="email" value="conductor@demo.com">
+          <input type="hidden" name="password" value="1234">
+          <button type="submit" class="demo-btn driver">🏍️ Demo Conductor</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

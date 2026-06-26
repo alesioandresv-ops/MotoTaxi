@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, session, request, redirect, url_for, flash
+from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify
 from .models import db, User, Driver, Trip
 import random
 
@@ -97,3 +97,49 @@ def driver_complete(trip_id):
     db.session.commit()
     flash('Viaje completado con éxito.', 'success')
     return redirect(url_for('main.dashboard'))
+
+
+@main_bp.route('/api/trip/<int:trip_id>/status')
+def api_trip_status(trip_id):
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({'error': 'Viaje no encontrado'}), 404
+
+    driver_info = None
+    if trip.driver:
+        driver_info = {
+            'name': trip.driver.name,
+            'phone': trip.driver.phone,
+            'placa': trip.driver.placa,
+            'moto_marca': trip.driver.moto_marca,
+            'moto_modelo': trip.driver.moto_modelo,
+            'moto_color': trip.driver.moto_color,
+            'moto_cilindrada': trip.driver.moto_cilindrada,
+            'tiene_casco': trip.driver.tiene_casco,
+            'seguro_moto': trip.driver.seguro_moto,
+            'carnet_conducir': trip.driver.carnet_conducir,
+        }
+
+    return jsonify({
+        'id': trip.id,
+        'status': trip.status,
+        'pickup_address': trip.pickup_address,
+        'dropoff_address': trip.dropoff_address,
+        'fare': trip.fare,
+        'driver': driver_info,
+    })
+
+
+@main_bp.route('/api/trips/available')
+def api_trips_available():
+    trips = Trip.query.filter_by(status='requested').order_by(Trip.requested_at.asc()).all()
+    return jsonify({
+        'count': len(trips),
+        'trips': [{
+            'id': t.id,
+            'pickup_address': t.pickup_address,
+            'dropoff_address': t.dropoff_address,
+            'fare': t.fare,
+            'requested_at': t.requested_at.isoformat() if t.requested_at else None,
+        } for t in trips],
+    })

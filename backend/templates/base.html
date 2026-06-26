@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MotoTaxi{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  {% block content %}{% endblock %}
+
+  <script>
+  // ─── Toast Notification System ───
+  function showToast(message, type) {
+    var icons = { success: '✅', danger: '❌', warning: '⚠️', info: 'ℹ️' };
+    var container = document.getElementById('toast-container');
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.innerHTML = '<span class="toast-icon">' + (icons[type] || 'ℹ️') + '</span><span>' + message + '</span>';
+    container.appendChild(toast);
+    setTimeout(function () {
+      toast.classList.add('removing');
+      setTimeout(function () { toast.remove(); }, 300);
+    }, 4000);
+  }
+
+  // Convert flash messages to toasts
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        document.addEventListener('DOMContentLoaded', function () {
+          showToast({{ message|tojson|safe }}, {{ category|tojson|safe }});
+        });
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
