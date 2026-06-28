@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN chmod +x start.sh && pip install --no-cache-dir -r backend/requirements.txt
 
-CMD ["python", "backend/app.py"]
+CMD ["/app/start.sh"]

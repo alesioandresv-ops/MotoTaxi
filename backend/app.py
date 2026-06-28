@@ -11,11 +11,111 @@ if PROJECT_ROOT not in sys.path:
 from backend.models import db
 from backend.auth import auth_bp
 from backend.routes import main_bp
-from migrate import run_migration_sa
 
-# Cargar variables desde backend/.env siempre que exista
+# Cargar variables desde backend/.env (no existe en Railway, no pasa nada)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
+
+
+def _ensure_columns(engine):
+    """
+    Agrega columnas faltantes sin depender de inspect().
+    Cada ALTER TABLE se ejecuta individualmente con try/except.
+    """
+    from sqlalchemy import text
+
+    statements = [
+        # users
+        "ALTER TABLE users ADD COLUMN profile_picture VARCHAR(255) NULL",
+        "ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN rating_avg FLOAT DEFAULT 5.0",
+        "ALTER TABLE users ADD COLUMN rating_count INTEGER DEFAULT 0",
+        # drivers
+        "ALTER TABLE drivers ADD COLUMN profile_picture VARCHAR(255) NULL",
+        "ALTER TABLE drivers ADD COLUMN email_verified TINYINT(1) DEFAULT 0",
+        "ALTER TABLE drivers ADD COLUMN is_online TINYINT(1) DEFAULT 0",
+        "ALTER TABLE drivers ADD COLUMN is_ocupado TINYINT(1) DEFAULT 0",
+        "ALTER TABLE drivers ADD COLUMN lat FLOAT NULL",
+        "ALTER TABLE drivers ADD COLUMN lng FLOAT NULL",
+        "ALTER TABLE drivers ADD COLUMN last_location_update DATETIME NULL",
+        "ALTER TABLE drivers ADD COLUMN rating_avg FLOAT DEFAULT 5.0",
+        "ALTER TABLE drivers ADD COLUMN rating_count INTEGER DEFAULT 0",
+        # trips
+        "ALTER TABLE trips ADD COLUMN pickup_lat FLOAT NULL",
+        "ALTER TABLE trips ADD COLUMN pickup_lng FLOAT NULL",
+        "ALTER TABLE trips ADD COLUMN dropoff_lat FLOAT NULL",
+        "ALTER TABLE trips ADD COLUMN dropoff_lng FLOAT NULL",
+        "ALTER TABLE trips ADD COLUMN distance_km FLOAT NULL",
+        "ALTER TABLE trips ADD COLUMN duration_min INTEGER NULL",
+        "ALTER TABLE trips ADD COLUMN started_at DATETIME NULL",
+        "ALTER TABLE trips ADD COLUMN completed_at DATETIME NULL",
+        "ALTER TABLE trips ADD COLUMN cancelled_by VARCHAR(20) NULL",
+    ]
+
+    with engine.connect() as conn:
+        for sql in statements:
+            try:
+                conn.execute(text(sql))
+                print(f"  ✅ {sql}")
+            except Exception as e:
+                err = str(e)
+                # "Duplicate column" o "Unknown database" se ignoran
+                if "Duplicate column" in err or "Unknown database" in err:
+                    pass
+                else:
+                    print(f"  ℹ️  {err[:120]}")
+
+
+def _ensure_tables(engine):
+    """Crea las tablas que falten (reviews, driver_sessions)."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    pending = []
+
+    try:
+        inspector.get_columns("reviews")
+    except Exception:
+        pending.append("""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                trip_id INTEGER NOT NULL,
+                from_user_id INTEGER NULL,
+                from_driver_id INTEGER NULL,
+                to_user_id INTEGER NULL,
+                to_driver_id INTEGER NULL,
+                rating INTEGER NOT NULL,
+                comment TEXT NULL,
+                role VARCHAR(10) NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (trip_id) REFERENCES trips(id),
+                FOREIGN KEY (from_user_id) REFERENCES users(id),
+                FOREIGN KEY (from_driver_id) REFERENCES drivers(id),
+                FOREIGN KEY (to_user_id) REFERENCES users(id),
+                FOREIGN KEY (to_driver_id) REFERENCES drivers(id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+    try:
+        inspector.get_columns("driver_sessions")
+    except Exception:
+        pending.append("""
+            CREATE TABLE IF NOT EXISTS driver_sessions (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                driver_id INTEGER NOT NULL,
+                is_online TINYINT(1) DEFAULT 0,
+                lat FLOAT NULL,
+                lng FLOAT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (driver_id) REFERENCES drivers(id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+    for ddl in pending:
+        with engine.connect() as conn:
+            conn.execute(text(ddl))
+        print(f"  ✅ Tabla creada")
+
 
 def create_app():
     app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -54,13 +154,20 @@ def create_app():
         return labels.get(status, status)
 
     with app.app_context():
+        print("--- Iniciando migración de columnas ---")
         try:
-            run_migration_sa(db)
+            _ensure_columns(db.engine)
         except Exception as e:
-            print(f"⚠️  Error en migración: {e}")
+            print(f"⚠️  Error en _ensure_columns: {e}")
+        try:
+            _ensure_tables(db.engine)
+        except Exception as e:
+            print(f"⚠️  Error en _ensure_tables: {e}")
+        print("--- Migración finalizada ---")
         db.create_all()
 
     return app
+
 
 app = create_app()
 
