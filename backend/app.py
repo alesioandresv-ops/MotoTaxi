@@ -11,7 +11,7 @@ if PROJECT_ROOT not in sys.path:
 from backend.models import db
 from backend.auth import auth_bp
 from backend.routes import main_bp
-from migrate import run_migration
+from migrate import run_migration_sa
 
 # Cargar variables desde backend/.env siempre que exista
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,9 +55,9 @@ def create_app():
 
     with app.app_context():
         try:
-            run_migration(database_url)
+            run_migration_sa(db)
         except Exception as e:
-            print(f"⚠️  No se pudo ejecutar migrate: {e}")
+            print(f"⚠️  Error en migración: {e}")
         db.create_all()
 
     return app
