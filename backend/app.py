@@ -17,10 +17,33 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
 
 
-def _ensure_columns(engine):
-    """Agrega columnas faltantes vía raw_connection() (pymysql directo)."""
+def _run_sql(sql):
+    """Ejecuta SQL directamente con pymysql(autocommit=True) SIN tocar el pool de SQLAlchemy."""
     import pymysql
+    url = os.environ.get('DATABASE_URL', '')
+    if not url:
+        print("  ⚠️  DATABASE_URL no definida", flush=True)
+        return
+    u = url.replace('mysql+pymysql://', '').replace('mysql://', '')
+    user_pass, rest = u.split('@', 1)
+    db_user, db_pass = user_pass.split(':', 1)
+    host_part = rest.split('/', 1)[0]
+    db_name = rest.split('/', 1)[1].split('?')[0]
+    if ':' in host_part:
+        db_host, db_port = host_part.split(':', 1)
+    else:
+        db_host, db_port = host_part, '3306'
+    conn = pymysql.connect(host=db_host, port=int(db_port), user=db_user, password=db_pass, database=db_name, autocommit=True)
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        cur.close()
+    finally:
+        conn.close()
 
+
+def _ensure_columns():
+    """Agrega columnas faltantes. Conexión pymysql directa con autocommit=True."""
     statements = [
         "ALTER TABLE users ADD COLUMN profile_picture VARCHAR(255) NULL",
         "ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0",
@@ -45,70 +68,51 @@ def _ensure_columns(engine):
         "ALTER TABLE trips ADD COLUMN completed_at DATETIME NULL",
         "ALTER TABLE trips ADD COLUMN cancelled_by VARCHAR(20) NULL",
     ]
-
-    raw = engine.raw_connection()
-    try:
-        cursor = raw.cursor(pymysql.cursors.DictCursor)
-        for sql in statements:
-            try:
-                cursor.execute(sql)
-                print(f"  ✅ {sql}", flush=True)
-            except pymysql.err.OperationalError as e:
-                code, msg = e.args
-                if code in (1060, 1049, 1146):
-                    pass
-                else:
-                    print(f"  ⚠️  ({code}) {msg[:120]}", flush=True)
-        raw.commit()
-    finally:
-        raw.close()
-
-
-def _ensure_tables(engine):
-    """Crea reviews / driver_sessions si no existen (pymysql directo)."""
     import pymysql
+    for sql in statements:
+        try:
+            _run_sql(sql)
+            print(f"  ✅ {sql}", flush=True)
+        except pymysql.err.OperationalError as e:
+            code, msg = e.args
+            if code not in (1060, 1049, 1146):
+                print(f"  ⚠️  ({code}) {msg[:120]}", flush=True)
 
-    raw = engine.raw_connection()
-    try:
-        cursor = raw.cursor(pymysql.cursors.DictCursor)
 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS reviews (
-                id INTEGER PRIMARY KEY AUTO_INCREMENT,
-                trip_id INTEGER NOT NULL,
-                from_user_id INTEGER NULL,
-                from_driver_id INTEGER NULL,
-                to_user_id INTEGER NULL,
-                to_driver_id INTEGER NULL,
-                rating INTEGER NOT NULL,
-                comment TEXT NULL,
-                role VARCHAR(10) NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (trip_id) REFERENCES trips(id),
-                FOREIGN KEY (from_user_id) REFERENCES users(id),
-                FOREIGN KEY (from_driver_id) REFERENCES drivers(id),
-                FOREIGN KEY (to_user_id) REFERENCES users(id),
-                FOREIGN KEY (to_driver_id) REFERENCES drivers(id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-        print("  ✅ reviews OK", flush=True)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS driver_sessions (
-                id INTEGER PRIMARY KEY AUTO_INCREMENT,
-                driver_id INTEGER NOT NULL,
-                is_online TINYINT(1) DEFAULT 0,
-                lat FLOAT NULL,
-                lng FLOAT NULL,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (driver_id) REFERENCES drivers(id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-        print("  ✅ driver_sessions OK", flush=True)
-
-        raw.commit()
-    finally:
-        raw.close()
+def _ensure_tables():
+    """Crea tablas faltantes. Conexión pymysql directa con autocommit=True."""
+    _run_sql("""
+        CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            trip_id INTEGER NOT NULL,
+            from_user_id INTEGER NULL,
+            from_driver_id INTEGER NULL,
+            to_user_id INTEGER NULL,
+            to_driver_id INTEGER NULL,
+            rating INTEGER NOT NULL,
+            comment TEXT NULL,
+            role VARCHAR(10) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (trip_id) REFERENCES trips(id),
+            FOREIGN KEY (from_user_id) REFERENCES users(id),
+            FOREIGN KEY (from_driver_id) REFERENCES drivers(id),
+            FOREIGN KEY (to_user_id) REFERENCES users(id),
+            FOREIGN KEY (to_driver_id) REFERENCES drivers(id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+    print("  ✅ reviews OK", flush=True)
+    _run_sql("""
+        CREATE TABLE IF NOT EXISTS driver_sessions (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            driver_id INTEGER NOT NULL,
+            is_online TINYINT(1) DEFAULT 0,
+            lat FLOAT NULL,
+            lng FLOAT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (driver_id) REFERENCES drivers(id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+    print("  ✅ driver_sessions OK", flush=True)
 
 
 def create_app():
@@ -148,16 +152,16 @@ def create_app():
         return labels.get(status, status)
 
     with app.app_context():
-        print("--- Iniciando migración de columnas ---", flush=True)
+        print("--- Migrando columnas (pymysql directo autocommit=True) ---", flush=True)
         try:
-            _ensure_columns(db.engine)
+            _ensure_columns()
         except Exception as e:
-            print(f"⚠️  Error en _ensure_columns: {e}", flush=True)
+            print(f"⚠️  _ensure_columns: {e}", flush=True)
         try:
-            _ensure_tables(db.engine)
+            _ensure_tables()
         except Exception as e:
-            print(f"⚠️  Error en _ensure_tables: {e}", flush=True)
-        print("--- Migración finalizada ---", flush=True)
+            print(f"⚠️  _ensure_tables: {e}", flush=True)
+        print("--- Migración SQL terminada, ahora db.create_all() ---", flush=True)
         db.create_all()
 
     return app
