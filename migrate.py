@@ -1,26 +1,19 @@
 #!/usr/bin/env python
 """
 Migración: agrega nuevas columnas a tablas existentes sin perder datos.
-Ejecutar UNA SOLA VEZ: python migrate.py
+Uso directo:  python migrate.py
+Importable:   from migrate import run_migration; run_migration(database_url)
 """
 import os
 import sys
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'backend', '.env'))
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if not DATABASE_URL:
-    print("ERROR: DATABASE_URL no definida en backend/.env")
-    sys.exit(1)
-
-print(f"Migrando: {DATABASE_URL}\n")
-
-try:
+def run_migration(database_url):
+    """Check each table and add any missing columns defined in models."""
     import pymysql
-    # Parsear la URL manualmente
-    # mysql+pymysql://user:pass@host:port/db
-    parts = DATABASE_URL.replace('mysql+pymysql://', '').replace('mysql://', '')
+
+    parts = database_url.replace('mysql+pymysql://', '').replace('mysql://', '')
     user_pass, rest = parts.split('@', 1)
     db_user, db_pass = user_pass.split(':', 1)
     host_port, db_name = rest.split('/', 1)
@@ -39,7 +32,6 @@ try:
     )
     cursor = conn.cursor()
 
-    # Obtener columnas existentes
     cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'users'", (db_name,))
     users_cols = {r[0] for r in cursor.fetchall()}
 
@@ -61,8 +53,6 @@ try:
             sql = f"ALTER TABLE users ADD COLUMN {col} {col_type}"
             cursor.execute(sql)
             print(f"  ✅ users.{col} agregada")
-        else:
-            print(f"  ℹ️  users.{col} ya existe")
 
     # ─── drivers ───
     drivers_new = {
@@ -81,8 +71,6 @@ try:
             sql = f"ALTER TABLE drivers ADD COLUMN {col} {col_type}"
             cursor.execute(sql)
             print(f"  ✅ drivers.{col} agregada")
-        else:
-            print(f"  ℹ️  drivers.{col} ya existe")
 
     # ─── trips ───
     trips_new = {
@@ -101,8 +89,6 @@ try:
             sql = f"ALTER TABLE trips ADD COLUMN {col} {col_type}"
             cursor.execute(sql)
             print(f"  ✅ trips.{col} agregada")
-        else:
-            print(f"  ℹ️  trips.{col} ya existe")
 
     # ─── review ───
     cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'reviews'", (db_name,))
@@ -127,8 +113,6 @@ try:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
         print("  ✅ Tabla 'reviews' creada")
-    else:
-        print("  ℹ️  Tabla 'reviews' ya existe")
 
     # ─── driver_sessions ───
     cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'driver_sessions'", (db_name,))
@@ -145,16 +129,24 @@ try:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
         print("  ✅ Tabla 'driver_sessions' creada")
-    else:
-        print("  ℹ️  Tabla 'driver_sessions' ya existe")
 
     conn.commit()
     cursor.close()
     conn.close()
+    print("  ✅ Migración completada")
 
-    print("\n✅ Migración completada exitosamente")
-    print("   Ahora puedes iniciar la app con: python backend/app.py")
 
-except Exception as e:
-    print(f"\n❌ Error durante la migración: {e}")
-    sys.exit(1)
+if __name__ == '__main__':
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'backend', '.env'))
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        print("ERROR: DATABASE_URL no definida en backend/.env")
+        sys.exit(1)
+    print(f"Migrando: {database_url}\n")
+    try:
+        run_migration(database_url)
+        print("\n✅ Migración completada exitosamente")
+        print("   Ahora puedes iniciar la app con: python backend/app.py")
+    except Exception as e:
+        print(f"\n❌ Error durante la migración: {e}")
+        sys.exit(1)
