@@ -59,10 +59,8 @@ def _ensure_columns(engine):
                 print(f"  ✅ {sql}")
             except Exception as e:
                 err = str(e)
-                # "Duplicate column" o "Unknown database" se ignoran
-                if "Duplicate column" in err or "Unknown database" in err:
-                    pass
-                else:
+                ignore = ["Duplicate column", "Unknown database", "doesn't exist"]
+                if not any(ig in err for ig in ignore):
                     print(f"  ℹ️  {err[:120]}")
 
 
