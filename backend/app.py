@@ -17,12 +17,12 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
 
 
-def _run_sql(sql):
-    """Ejecuta SQL directamente con pymysql(autocommit=True) SIN tocar el pool de SQLAlchemy."""
+def _migrate_sql(sql):
+    """Ejecuta SQL con pymysql(autocommit=True), 100% fuera de SQLAlchemy."""
     import pymysql
     url = os.environ.get('DATABASE_URL', '')
     if not url:
-        print("  ⚠️  DATABASE_URL no definida", flush=True)
+        print("  ⚠️  DATABASE_URL vacía", flush=True)
         return
     u = url.replace('mysql+pymysql://', '').replace('mysql://', '')
     user_pass, rest = u.split('@', 1)
@@ -43,7 +43,8 @@ def _run_sql(sql):
 
 
 def _ensure_columns():
-    """Agrega columnas faltantes. Conexión pymysql directa con autocommit=True."""
+    """Agrega columnas faltantes. Conexión pymysql directa — cero SQLAlchemy."""
+    import pymysql
     statements = [
         "ALTER TABLE users ADD COLUMN profile_picture VARCHAR(255) NULL",
         "ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0",
@@ -68,20 +69,21 @@ def _ensure_columns():
         "ALTER TABLE trips ADD COLUMN completed_at DATETIME NULL",
         "ALTER TABLE trips ADD COLUMN cancelled_by VARCHAR(20) NULL",
     ]
-    import pymysql
     for sql in statements:
         try:
-            _run_sql(sql)
+            _migrate_sql(sql)
             print(f"  ✅ {sql}", flush=True)
         except pymysql.err.OperationalError as e:
             code, msg = e.args
             if code not in (1060, 1049, 1146):
-                print(f"  ⚠️  ({code}) {msg[:120]}", flush=True)
+                print(f"  ⚠️  ({code}) {msg[:200]}", flush=True)
+        except Exception as e:
+            print(f"  ⚠️  {type(e).__name__}: {e}", flush=True)
 
 
 def _ensure_tables():
-    """Crea tablas faltantes. Conexión pymysql directa con autocommit=True."""
-    _run_sql("""
+    """Crea tablas faltantes. Conexión pymysql directa — cero SQLAlchemy."""
+    _migrate_sql("""
         CREATE TABLE IF NOT EXISTS reviews (
             id INTEGER PRIMARY KEY AUTO_INCREMENT,
             trip_id INTEGER NOT NULL,
@@ -101,7 +103,7 @@ def _ensure_tables():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
     print("  ✅ reviews OK", flush=True)
-    _run_sql("""
+    _migrate_sql("""
         CREATE TABLE IF NOT EXISTS driver_sessions (
             id INTEGER PRIMARY KEY AUTO_INCREMENT,
             driver_id INTEGER NOT NULL,
