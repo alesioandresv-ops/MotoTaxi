@@ -2,6 +2,7 @@
 set -e
 
 echo "=== MotoTaxi Startup ==="
+PORT="${PORT:-5000}"
 echo "PORT=$PORT"
 echo "DATABASE_URL=${DATABASE_URL:0:50}..."
 
