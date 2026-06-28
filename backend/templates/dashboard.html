@@ -4,58 +4,85 @@
 <div class="dashboard page-transition">
   <div class="container">
     {% if user_type == 'passenger' %}
-    <!-- ─── PASSENGER DASHBOARD ─── -->
+    <!-- ═══════ PASSENGER DASHBOARD ═══════ -->
     <nav class="navbar">
       <div class="navbar-brand">🏍️ MotoTaxi</div>
       <div class="navbar-center">
         <span class="navbar-user">👤 {{ user_name }}</span>
       </div>
       <div class="navbar-actions">
-        <a href="/logout" class="btn btn-ghost btn-sm">Salir</a>
+        <a href="/profile" class="btn btn-ghost-sm">👤 Perfil</a>
+        <a href="/logout" class="btn btn-ghost-sm">Salir</a>
       </div>
     </nav>
 
     <div class="dashboard-content">
       {% if current_trip %}
-      <!-- Active trip -->
+      <!-- ─── Active trip ─── -->
       <div class="card card-highlight page-transition" id="active-trip-section">
-        <div class="card-title">
-          {% if current_trip.status == 'requested' %}
-          ⏳ Esperando conductor
-          {% elif current_trip.status == 'accepted' %}
-          ✅ Conductor asignado
-          {% elif current_trip.status == 'ongoing' %}
-          🚗 Viaje en curso
+        <div class="card-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span>
+            {% if current_trip.status == 'requested' %}⏳ Esperando conductor
+            {% elif current_trip.status == 'accepted' %}✅ Conductor asignado
+            {% elif current_trip.status == 'ongoing' %}🚗 Viaje en curso
+            {% endif %}
+          </span>
+          {% if current_trip.status == 'accepted' %}
+          <span class="eta-badge" id="eta-badge">🛵 Calculando ETA...</span>
           {% endif %}
         </div>
 
-        <div style="display:grid;gap:16px;">
-          <div class="trip-item">
-            <div class="trip-item-info">
-              <p><strong>📍 Origen:</strong> {{ current_trip.pickup_address }}</p>
-              <p><strong>🎯 Destino:</strong> {{ current_trip.dropoff_address }}</p>
-              <p><strong>💰 Tarifa:</strong> <span style="color:var(--primary-light);font-weight:700;">${{ "%.2f"|format(current_trip.fare) }}</span></p>
-            </div>
-            <div class="trip-item-right">
-              <span class="badge badge-{{ current_trip.status }}">{{ current_trip.status }}</span>
+        <div class="dashboard-grid-2" style="margin-top:16px;">
+          <div>
+            <div class="map-container map-section" id="passenger-map-container">
+              <div class="map-loading" id="passenger-map-loading">Cargando mapa...</div>
+              <div id="passenger-map" style="width:100%;height:100%;"></div>
             </div>
           </div>
+          <div style="display:grid;gap:16px;">
+            <div class="trip-item">
+              <div class="trip-item-info">
+                <p><strong>📍 Origen:</strong> {{ current_trip.pickup_address }}</p>
+                <p><strong>🎯 Destino:</strong> {{ current_trip.dropoff_address }}</p>
+                <p><strong>💰 Tarifa:</strong> <span style="color:var(--primary-light);font-weight:700;">${{ "%.2f"|format(current_trip.fare) }}</span></p>
+                {% if current_trip.distance_km %}
+                <p><strong>📏 Distancia:</strong> {{ "%.1f"|format(current_trip.distance_km) }} km</p>
+                {% endif %}
+              </div>
+              <div class="trip-item-right">
+                <span class="badge badge-{{ current_trip.status }}">{{ current_trip.status|status_label }}</span>
+              </div>
+            </div>
 
-          {% if driver_info %}
-          <div class="driver-info-card" id="driver-info">
-            <h4>🏍️ Información del conductor</h4>
-            <div class="driver-info-grid">
-              <p><strong>Nombre:</strong> {{ driver_info.name }}</p>
-              <p><strong>Moto:</strong> {{ driver_info.moto_marca }} {{ driver_info.moto_modelo }}</p>
-              <p><strong>Color:</strong> {{ driver_info.moto_color }}</p>
-              <p><strong>Placa:</strong> {{ driver_info.placa }}</p>
-              <p><strong>Cilindrada:</strong> {{ driver_info.moto_cilindrada }}</p>
-              <p><strong>Casco:</strong> {{ 'Sí ✓' if driver_info.tiene_casco else 'No ✗' }}</p>
-              <p><strong>Seguro:</strong> {{ 'Sí ✓' if driver_info.seguro_moto else 'No ✗' }}</p>
-              <p><strong>Carnet:</strong> {{ driver_info.carnet_conducir }}</p>
+            {% if driver_info %}
+            <div class="driver-info-card" id="driver-info">
+              <h4>🏍️ Información del conductor</h4>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;">
+                  {% if driver_info.profile_picture %}
+                  <img src="{{ driver_info.profile_picture }}" style="width:100%;height:100%;object-fit:cover;">
+                  {% else %}
+                  <div style="width:100%;height:100%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;color:#fff;">{{ driver_info.name[0]|upper }}</div>
+                  {% endif %}
+                </div>
+                <div>
+                  <strong>{{ driver_info.name }}</strong>
+                  <div style="font-size:0.85rem;color:var(--text-muted);">⭐ {{ driver_info.rating_avg }} ({{ driver_info.rating_count }})</div>
+                </div>
+              </div>
+              <div class="driver-info-grid">
+                <p><strong>Moto:</strong> {{ driver_info.moto_marca }} {{ driver_info.moto_modelo }}</p>
+                <p><strong>Color:</strong> {{ driver_info.moto_color }}</p>
+                <p><strong>Placa:</strong> {{ driver_info.placa }}</p>
+                <p><strong>Casco:</strong> {{ 'Sí ✓' if driver_info.tiene_casco else 'No ✗' }}</p>
+              </div>
             </div>
+            {% endif %}
+
+            {% if current_trip.status == 'accepted' or current_trip.status == 'ongoing' %}
+            <button class="btn btn-danger btn-block" onclick="cancelTrip({{ current_trip.id }})" style="margin-top:8px;">Cancelar Viaje</button>
+            {% endif %}
           </div>
-          {% endif %}
         </div>
       </div>
 
@@ -63,31 +90,62 @@
       <div class="waiting-indicator" id="waiting-animation">
         <div class="spinner"></div>
         <p style="color:var(--text-muted);">Buscando conductores cercanos...</p>
+        <button class="btn btn-danger btn-sm" onclick="cancelTrip({{ current_trip.id }})" style="margin-top:12px;">Cancelar solicitud</button>
       </div>
       {% endif %}
       {% else %}
-      <!-- Request form -->
-      <div class="card card-highlight">
-        <div class="card-title">Solicitar Viaje</div>
-        <form class="form" method="post" action="/passenger/request">
-          <div class="input-group">
-            <label>Dirección de recogida</label>
-            <input type="text" name="pickup_address" required placeholder="Ej: Calle Principal 123">
+      <!-- ─── Request form + Nearby drivers ─── -->
+      <div class="dashboard-grid-2">
+        <div class="card card-highlight">
+          <div class="card-title">Solicitar Viaje</div>
+          <form class="form" method="post" action="/passenger/request" id="trip-request-form">
+            <div class="input-group">
+              <label>📍 Ubicación de recogida</label>
+              <input type="text" name="pickup_address" id="pickup-address" required placeholder="Ej: Calle Principal 123">
+              <input type="hidden" name="pickup_lat" id="pickup-lat">
+              <input type="hidden" name="pickup_lng" id="pickup-lng">
+            </div>
+            <div class="input-group">
+              <label>🎯 Destino</label>
+              <input type="text" name="dropoff_address" id="dropoff-address" required placeholder="Ej: Avenida Central 456">
+              <input type="hidden" name="dropoff_lat" id="dropoff-lat">
+              <input type="hidden" name="dropoff_lng" id="dropoff-lng">
+              <input type="hidden" name="distance_km" id="distance-km">
+            </div>
+            <div id="fare-estimate" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);text-align:center;">
+              <span style="color:var(--text-muted);">Tarifa estimada:</span>
+              <span style="font-size:1.3rem;font-weight:700;color:var(--primary-light);" id="fare-amount">$0.00</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Solicitar Viaje</button>
+          </form>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">🛵 Conductores Cercanos</div>
+            <p class="nearby-count" id="nearby-count">Buscando conductores...</p>
+            <div class="nearby-drivers-list" id="nearby-drivers-list">
+              <div class="empty-state">
+                <div class="icon">🛵</div>
+                <p>Esperando ubicación...</p>
+              </div>
+            </div>
           </div>
-          <div class="input-group">
-            <label>Dirección de destino</label>
-            <input type="text" name="dropoff_address" required placeholder="Ej: Centro Comercial">
+          <div class="card" style="margin-top:16px;">
+            <div class="card-title">📍 Tu Ubicación <span style="font-weight:400;font-size:0.8rem;color:var(--text-muted);" id="location-status">(obteniendo...)</span></div>
+            <div class="map-container" style="height:250px;">
+              <div id="mini-map" style="width:100%;height:100%;"></div>
+            </div>
           </div>
-          <button type="submit" class="btn btn-primary btn-lg btn-block">Solicitar Viaje</button>
-        </form>
+        </div>
       </div>
       {% endif %}
 
-      <!-- History -->
-      <div class="card">
+      <!-- History + Review modal -->
+      <div class="card" style="margin-top:24px;">
         <div class="card-title">Historial de Viajes</div>
         {% if history_trips %}
-        <div class="trip-list">
+        <div class="trip-list" id="history-list">
           {% for trip in history_trips %}
           <div class="trip-item">
             <div class="trip-item-info">
@@ -97,7 +155,10 @@
             </div>
             <div class="trip-item-right">
               <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
-              <span class="badge badge-{{ trip.status }}">{{ trip.status }}</span>
+              <span class="badge badge-{{ trip.status }}">{{ trip.status|status_label }}</span>
+              {% if trip.status == 'completed' %}
+              <button class="btn-ghost-sm" onclick="rateTrip({{ trip.id }}, 'passenger')" style="margin-top:4px;">⭐ Calificar</button>
+              {% endif %}
             </div>
           </div>
           {% endfor %}
@@ -112,14 +173,19 @@
     </div>
 
     {% elif user_type == 'driver' %}
-    <!-- ─── DRIVER DASHBOARD ─── -->
+    <!-- ═══════ DRIVER DASHBOARD ═══════ -->
     <nav class="navbar">
       <div class="navbar-brand">🏍️ MotoTaxi Conductor</div>
       <div class="navbar-center">
         <span class="navbar-user">👤 {{ user_name }}</span>
+        <button class="online-toggle-btn" id="online-toggle" onclick="toggleOnline()">
+          <span class="dot"></span>
+          <span id="online-text">Conectarse</span>
+        </button>
       </div>
       <div class="navbar-actions">
-        <a href="/logout" class="btn btn-ghost btn-sm">Salir</a>
+        <a href="/profile" class="btn btn-ghost-sm">👤 Perfil</a>
+        <a href="/logout" class="btn btn-ghost-sm">Salir</a>
       </div>
     </nav>
 
@@ -130,7 +196,7 @@
         <div class="stats-grid">
           <div class="stat-item">
             <span class="stat-value" id="completed-count">{{ completed_trips|length }}</span>
-            <span class="stat-label">Viajes hoy</span>
+            <span class="stat-label">Viajes completados</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">$<span id="earnings-count">{{ "%.2f"|format(completed_trips|sum(attribute='fare')) }}</span></span>
@@ -140,25 +206,70 @@
             <span class="stat-value" id="available-count">{{ available_trips|length }}</span>
             <span class="stat-label">Disponibles</span>
           </div>
+          <div class="stat-item">
+            <span class="stat-value">⭐ {{ driver.rating_avg }}</span>
+            <span class="stat-label">Calificación</span>
+          </div>
         </div>
       </div>
 
-      <div class="dashboard-grid-3">
-        <!-- Available trips -->
+      {% if active_trip %}
+      <!-- ─── Active trip ─── -->
+      <div class="card card-success" id="active-trip-card">
+        <div class="card-title">🟢 Viaje Activo</div>
+        <div class="dashboard-grid-2" style="margin-top:16px;">
+          <div>
+            <div class="map-container map-section" id="driver-map-container">
+              <div class="map-loading" id="driver-map-loading">Cargando mapa...</div>
+              <div id="driver-map" style="width:100%;height:100%;"></div>
+            </div>
+          </div>
+          <div style="display:grid;gap:12px;">
+            <div class="trip-item">
+              <div class="trip-item-info">
+                <p><strong>📍 {{ active_trip.pickup_address }}</strong></p>
+                <p style="color:var(--text-muted);">→ {{ active_trip.dropoff_address }}</p>
+                <p><strong>💰 ${{ "%.2f"|format(active_trip.fare) }}</strong></p>
+                {% if active_trip.distance_km %}
+                <p><strong>📏 {{ "%.1f"|format(active_trip.distance_km) }} km</strong></p>
+                {% endif %}
+                <p><span class="badge badge-{{ active_trip.status }}">{{ active_trip.status|status_label }}</span></p>
+              </div>
+            </div>
+            <div>
+              {% if active_trip.status == 'accepted' %}
+              <a href="/driver/start/{{ active_trip.id }}" class="btn btn-primary btn-lg btn-block">🚀 Iniciar viaje</a>
+              <button class="btn btn-danger btn-block" onclick="cancelTrip({{ active_trip.id }})" style="margin-top:8px;">Cancelar viaje</button>
+              {% elif active_trip.status == 'ongoing' %}
+              <a href="/driver/complete/{{ active_trip.id }}" class="btn btn-success btn-lg btn-block">✅ Completar viaje</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <!-- ─── Available trips ─── -->
+      <div class="dashboard-grid-2">
         <div class="card">
-          <div class="card-title">Viajes Disponibles <span class="badge badge-requested" id="available-badge" style="font-size:0.75rem;vertical-align:middle;">{{ available_trips|length }}</span></div>
+          <div class="card-title">
+            Viajes Disponibles
+            <span class="badge badge-requested" id="available-badge" style="font-size:0.75rem;vertical-align:middle;">{{ available_trips|length }}</span>
+          </div>
           {% if available_trips %}
           <div class="trip-list" id="available-trips-list">
             {% for trip in available_trips %}
-            <div class="trip-item" id="trip-{{ trip.id }}">
-              <div class="trip-item-info">
+            <div class="trip-item driver-card" id="trip-{{ trip.id }}">
+              <div class="trip-item-info" style="flex:1;">
                 <p><strong>📍 {{ trip.pickup_address }}</strong></p>
                 <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
                 <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%H:%M') }}</p>
+                {% if trip.distance_km %}
+                <p style="font-size:0.8rem;color:var(--primary-light);">📏 {{ "%.1f"|format(trip.distance_km) }} km</p>
+                {% endif %}
               </div>
-              <div class="trip-item-right">
+              <div class="trip-item-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
                 <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
-                <a href="/driver/accept/{{ trip.id }}" class="btn btn-success btn-sm" style="margin-top:8px;">Aceptar</a>
+                <a href="/driver/accept/{{ trip.id }}" class="btn-accept">Aceptar</a>
               </div>
             </div>
             {% endfor %}
@@ -171,38 +282,16 @@
           {% endif %}
         </div>
 
-        <!-- Active trip -->
         <div>
-          {% if active_trip %}
-          <div class="card card-success" id="active-trip-card">
-            <div class="card-title">🟢 Viaje Activo</div>
-            <div style="display:grid;gap:12px;">
-              <div class="trip-item">
-                <div class="trip-item-info">
-                  <p><strong>📍 {{ active_trip.pickup_address }}</strong></p>
-                  <p style="color:var(--text-muted);">→ {{ active_trip.dropoff_address }}</p>
-                  <p><strong>💰 ${{ "%.2f"|format(active_trip.fare) }}</strong></p>
-                  <p><span class="badge badge-{{ active_trip.status }}">{{ active_trip.status }}</span></p>
-                </div>
-              </div>
-              {% if active_trip.status == 'accepted' or active_trip.status == 'ongoing' %}
-              <a href="/driver/complete/{{ active_trip.id }}" class="btn btn-success btn-lg btn-block">✅ Completar viaje</a>
-              {% endif %}
-            </div>
-          </div>
-          {% else %}
           <div class="card">
-            <div class="card-title">⚫ Sin viaje activo</div>
-            <div class="empty-state">
-              <div class="icon">💤</div>
-              <p>Esperando solicitudes...</p>
+            <div class="card-title">📍 Tu ubicación</div>
+            <div class="map-container" style="height:250px;">
+              <div id="driver-mini-map" style="width:100%;height:100%;"></div>
             </div>
           </div>
-          {% endif %}
 
-          <!-- Completed trips -->
           {% if completed_trips %}
-          <div class="card" style="margin-top:24px;">
+          <div class="card" style="margin-top:16px;">
             <div class="card-title">Completados ({{ completed_trips|length }})</div>
             <div class="trip-list">
               {% for trip in completed_trips %}
@@ -211,8 +300,9 @@
                   <p style="font-size:0.85rem;"><strong>{{ trip.pickup_address }}</strong> → <span style="color:var(--text-muted);">{{ trip.dropoff_address }}</span></p>
                   <p style="font-size:0.75rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%d/%m/%Y') }}</p>
                 </div>
-                <div class="trip-item-right">
+                <div class="trip-item-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
                   <span style="color:var(--success);font-weight:700;">${{ "%.2f"|format(trip.fare) }}</span>
+                  <button class="btn-ghost-sm" onclick="rateTrip({{ trip.id }}, 'driver')">⭐ Calificar</button>
                 </div>
               </div>
               {% endfor %}
@@ -221,37 +311,267 @@
           {% endif %}
         </div>
       </div>
+      {% endif %}
     </div>
     {% endif %}
+  </div>
+</div>
+
+<!-- ═══════ Review Modal ═══════ -->
+<div id="review-modal" class="review-modal-overlay" style="display:none;">
+  <div class="review-modal">
+    <h3>⭐ Calificar viaje</h3>
+    <p class="sub">Tu opinión ayuda a mejorar el servicio</p>
+    <div class="rating-input">
+      <div class="star-select" id="star-select">
+        <span data-value="1">☆</span>
+        <span data-value="2">☆</span>
+        <span data-value="3">☆</span>
+        <span data-value="4">☆</span>
+        <span data-value="5">☆</span>
+      </div>
+      <textarea class="rating-comment" id="review-comment" placeholder="Escribe un comentario (opcional)..." rows="3"></textarea>
+      <div style="display:flex;gap:8px;width:100%;">
+        <button class="btn btn-primary" onclick="submitReview()" style="flex:1;">Enviar</button>
+        <button class="btn-ghost" onclick="closeReviewModal()">Cancelar</button>
+      </div>
+    </div>
+    <input type="hidden" id="review-trip-id" value="">
+    <input type="hidden" id="review-role" value="">
+    <input type="hidden" id="review-rating" value="0">
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// ─── Auto-refresh for passenger: poll trip status ───
+var MAPBOX_TOKEN = '{{ MAPBOX_TOKEN }}';
+var GOOGLE_MAPS_KEY = '{{ GOOGLE_MAPS_KEY }}';
+var userLat = null;
+var userLng = null;
+var map = null;
+var markers = [];
+var watchId = null;
+
+// ─── Geolocation ───
+function startGeolocation() {
+  if (!navigator.geolocation) {
+    document.getElementById('location-status').textContent = '(no soportado)';
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(function(pos) {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    var statusEl = document.getElementById('location-status');
+    if (statusEl) statusEl.textContent = '(📍 activa)';
+
+    // Update nearby drivers for passenger
+    {% if user_type == 'passenger' and not current_trip %}
+    fetchNearbyDrivers(userLat, userLng);
+    initMiniMap(userLat, userLng);
+    {% endif %}
+
+    // Update location to server for driver
+    {% if user_type == 'driver' %}
+    updateDriverLocation(userLat, userLng);
+    initDriverMiniMap(userLat, userLng);
+    {% endif %}
+  }, function(err) {
+    var statusEl = document.getElementById('location-status');
+    if (statusEl) statusEl.textContent = '(error: ' + err.message + ')';
+  }, {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 5000
+  });
+}
+
+// ─── Nearby Drivers ───
+function fetchNearbyDrivers(lat, lng) {
+  fetch('/api/drivers/nearby?lat=' + lat + '&lng=' + lng + '&radius=10')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var listEl = document.getElementById('nearby-drivers-list');
+      var countEl = document.getElementById('nearby-count');
+      if (countEl) countEl.textContent = data.count + ' conductor(es) cerca de ti';
+
+      if (data.count === 0) {
+        listEl.innerHTML = '<div class="empty-state"><div class="icon">🛵</div><p>No hay conductores disponibles cerca</p></div>';
+        return;
+      }
+
+      var html = '';
+      data.drivers.forEach(function(d) {
+        var avatar = d.profile_picture
+          ? '<img src="' + d.profile_picture + '">'
+          : '<div class="avatar-placeholder-sm">' + d.name[0] + '</div>';
+        html += '<div class="driver-card" onclick="document.getElementById(\'pickup-address\').value=\'' + d.name + '\'">' +
+          '<div class="driver-card-avatar">' + avatar + '</div>' +
+          '<div class="driver-card-info">' +
+            '<h4>' + d.name + '</h4>' +
+            '<div class="rating-sm">⭐ ' + d.rating_avg + '</div>' +
+            '<div class="moto-sm">' + d.moto_marca + ' ' + d.moto_modelo + '</div>' +
+          '</div>' +
+          '<div class="distance">' + d.distance_km.toFixed(1) + ' km</div>' +
+        '</div>';
+      });
+      listEl.innerHTML = html;
+    })
+    .catch(function() {});
+}
+
+// ─── Driver Online Toggle ───
+function toggleOnline() {
+  var btn = document.getElementById('online-toggle');
+  var text = document.getElementById('online-text');
+  var isOnline = btn.classList.contains('online');
+
+  fetch('/api/driver/toggle_online', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({is_online: !isOnline})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      btn.classList.toggle('online');
+      text.textContent = data.is_online ? 'En Línea' : 'Conectarse';
+      if (data.is_online) startDriverLocationUpdates();
+    }
+  });
+}
+
+var locationInterval = null;
+function startDriverLocationUpdates() {
+  if (locationInterval) clearInterval(locationInterval);
+  locationInterval = setInterval(function() {
+    if (userLat && userLng) {
+      updateDriverLocation(userLat, userLng);
+    }
+  }, 5000);
+}
+
+function updateDriverLocation(lat, lng) {
+  fetch('/api/location/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lat: lat, lng: lng})
+  }).catch(function() {});
+}
+
+// ─── Mini Maps ───
+function initMiniMap(lat, lng) {
+  var el = document.getElementById('mini-map');
+  if (!el || el.dataset.initialized) return;
+  el.dataset.initialized = '1';
+  el.innerHTML = '<iframe width="100%" height="100%" frameborder="0" style="border:0;border-radius:var(--radius-sm);" src="https://www.openstreetmap.org/export/embed.html?bbox=' + (lng-0.01) + ',' + (lat-0.01) + ',' + (lng+0.01) + ',' + (lat+0.01) + '&layer=transportmap&marker=' + lat + ',' + lng + '"></iframe>';
+}
+
+function initDriverMiniMap(lat, lng) {
+  var el = document.getElementById('driver-mini-map');
+  if (!el || el.dataset.initialized) return;
+  el.dataset.initialized = '1';
+  el.innerHTML = '<iframe width="100%" height="100%" frameborder="0" style="border:0;border-radius:var(--radius-sm);" src="https://www.openstreetmap.org/export/embed.html?bbox=' + (lng-0.01) + ',' + (lat-0.01) + ',' + (lng+0.01) + ',' + (lat+0.01) + '&layer=transportmap&marker=' + lat + ',' + lng + '"></iframe>';
+}
+
+// ─── Fare Estimate ───
+var fareTimer = null;
+document.addEventListener('DOMContentLoaded', function() {
+  var pickup = document.getElementById('pickup-address');
+  var dropoff = document.getElementById('dropoff-address');
+  if (pickup && dropoff) {
+    pickup.addEventListener('input', updateFareEstimateDelayed);
+    dropoff.addEventListener('input', updateFareEstimateDelayed);
+  }
+  startGeolocation();
+});
+
+function updateFareEstimateDelayed() {
+  if (fareTimer) clearTimeout(fareTimer);
+  fareTimer = setTimeout(updateFareEstimate, 800);
+}
+
+function updateFareEstimate() {
+  var pickup = document.getElementById('pickup-address').value;
+  var dropoff = document.getElementById('dropoff-address').value;
+  if (!pickup || !dropoff) {
+    document.getElementById('fare-estimate').style.display = 'none';
+    return;
+  }
+  var base = 3.0;
+  var dist = Math.max(1, Math.abs(pickup.length - dropoff.length));
+  var fare = base + dist * 0.75;
+  document.getElementById('fare-amount').textContent = '$' + fare.toFixed(2);
+  document.getElementById('fare-estimate').style.display = 'block';
+  document.getElementById('distance-km').value = dist;
+}
+
+// ─── Trip Cancel ───
+function cancelTrip(tripId) {
+  if (!confirm('¿Estás seguro de cancelar este viaje?')) return;
+  fetch('/api/trip/' + tripId + '/cancel', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({reason: 'Cancelado por el usuario'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Viaje cancelado', 'info');
+      setTimeout(function() { window.location.reload(); }, 1000);
+    } else {
+      showToast('Error: ' + (data.error || 'desconocido'), 'danger');
+    }
+  })
+  .catch(function() {
+    showToast('Error al cancelar', 'danger');
+  });
+}
+
+// ─── ETA Polling ───
+{% if user_type == 'passenger' and current_trip and current_trip.status == 'accepted' %}
+(function pollETA() {
+  fetch('/api/trip/{{ current_trip.id }}/eta')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var badge = document.getElementById('eta-badge');
+      if (badge && data.eta_min) {
+        badge.innerHTML = '🛵 Tu conductor llegará en aproximadamente <strong>' + data.eta_min + '\'</strong>';
+      }
+    })
+    .catch(function() {});
+  setTimeout(pollETA, 10000);
+})();
+{% endif %}
+
+// ─── Passenger Trip Status Polling ───
 {% if user_type == 'passenger' and current_trip and current_trip.status != 'completed' %}
 (function pollPassenger() {
   fetch('/api/trip/{{ current_trip.id }}/status')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
       if (data.error) return;
+      var _label = {requested:'Solicitado',accepted:'Aceptado',ongoing:'En curso',completed:'Completado',cancelled:'Cancelado'}[data.status] || data.status;
       if (data.status !== '{{ current_trip.status }}') {
-        showToast('¡Tu viaje ha cambiado a: ' + data.status + '!', 'success');
-        setTimeout(function () { window.location.reload(); }, 1500);
+        showToast('¡Tu viaje cambió a: ' + _label + '!', 'success');
+        setTimeout(function() { window.location.reload(); }, 1500);
+      }
+      // Update driver location on map if available
+      if (data.driver && data.driver.lat) {
+        updateDriverOnPassengerMap(data.driver.lat, data.driver.lng);
       }
     })
-    .catch(function () {});
+    .catch(function() {});
   setTimeout(pollPassenger, 5000);
 })();
 {% endif %}
 
-// ─── Auto-refresh for driver: poll available trips ───
+// ─── Driver Available Trips Polling ───
 {% if user_type == 'driver' and not active_trip %}
-(function pollDriver() {
+(function pollDriverTrips() {
   fetch('/api/trips/available')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
       if (data.error) return;
       var list = document.getElementById('available-trips-list');
       var empty = document.getElementById('no-trips-available');
@@ -266,14 +586,188 @@
         showToast('🔔 Nuevo viaje disponible', 'info');
       }
 
-      // If we have no trips and now we do (or vice versa), reload
       var hasTrips = list && list.children.length > 0;
       if ((data.count > 0 && !hasTrips) || (data.count === 0 && hasTrips)) {
         window.location.reload();
       }
     })
-    .catch(function () {});
-  setTimeout(pollDriver, 5000);
+    .catch(function() {});
+  setTimeout(pollDriverTrips, 5000);
+})();
+{% endif %}
+
+// ─── Driver Active Trip Polling ───
+{% if user_type == 'driver' and active_trip and active_trip.status == 'accepted' %}
+(function pollDriverActive() {
+  fetch('/api/trip/{{ active_trip.id }}/status')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) return;
+      if (data.status !== '{{ active_trip.status }}') {
+        window.location.reload();
+      }
+    })
+    .catch(function() {});
+  setTimeout(pollDriverActive, 5000);
+})();
+{% endif %}
+
+// ─── Review System ───
+var reviewTripId = null;
+var reviewRole = null;
+var selectedRating = 0;
+
+function rateTrip(tripId, role) {
+  reviewTripId = tripId;
+  reviewRole = role;
+  selectedRating = 0;
+  document.getElementById('review-trip-id').value = tripId;
+  document.getElementById('review-role').value = role;
+  document.getElementById('review-rating').value = 0;
+  document.getElementById('review-comment').value = '';
+
+  var stars = document.getElementById('star-select').children;
+  for (var i = 0; i < stars.length; i++) {
+    stars[i].textContent = '☆';
+    stars[i].classList.remove('active');
+  }
+
+  document.getElementById('review-modal').style.display = 'flex';
+}
+
+function closeReviewModal() {
+  document.getElementById('review-modal').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var starContainer = document.getElementById('star-select');
+  if (starContainer) {
+    var stars = starContainer.children;
+    for (var i = 0; i < stars.length; i++) {
+      (function(idx) {
+        stars[i].addEventListener('click', function() {
+          selectedRating = idx + 1;
+          document.getElementById('review-rating').value = selectedRating;
+          for (var j = 0; j < stars.length; j++) {
+            if (j <= idx) {
+              stars[j].textContent = '★';
+              stars[j].classList.add('active');
+            } else {
+              stars[j].textContent = '☆';
+              stars[j].classList.remove('active');
+            }
+          }
+        });
+      })(i);
+    }
+  }
+});
+
+function submitReview() {
+  var rating = parseInt(document.getElementById('review-rating').value);
+  if (!rating || rating < 1) {
+    showToast('Selecciona una calificación', 'warning');
+    return;
+  }
+  var tripId = document.getElementById('review-trip-id').value;
+  var comment = document.getElementById('review-comment').value;
+
+  fetch('/api/trip/' + tripId + '/rate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rating: rating, comment: comment})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('¡Calificación enviada! ⭐', 'success');
+      closeReviewModal();
+    } else {
+      showToast('Error: ' + (data.error || 'desconocido'), 'danger');
+    }
+  })
+  .catch(function() {
+    showToast('Error al enviar calificación', 'danger');
+  });
+}
+
+// ─── Passenger Map (active trip) ───
+{% if user_type == 'passenger' and current_trip and current_trip.status != 'requested' %}
+(function initPassengerMap() {
+  var container = document.getElementById('passenger-map-container');
+  var loading = document.getElementById('passenger-map-loading');
+  var lat = {{ current_trip.pickup_lat or -34.6037 }};
+  var lng = {{ current_trip.pickup_lng or -58.3816 }};
+
+  if (lat && lng) {
+    var iframe = document.createElement('iframe');
+    iframe.width = '100%';
+    iframe.height = '100%';
+    iframe.frameBorder = '0';
+    iframe.style.border = '0';
+    iframe.style.borderRadius = 'var(--radius-sm)';
+
+    {% if current_trip.status == 'accepted' and driver_info %}
+    var dlng = {{ driver_info.lng or lng }};
+    var dlat = {{ driver_info.lat or lat }};
+    iframe.src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + Math.min(lng, dlng) + ',' + Math.min(lat, dlat) + ',' + Math.max(lng, dlng) + ',' + Math.max(lat, dlat) + '&layer=transportmap&marker=' + lat + ',' + lng;
+    {% elif current_trip.dropoff_lat and current_trip.dropoff_lng %}
+    var dl = {{ current_trip.dropoff_lng or lng }};
+    var dlat2 = {{ current_trip.dropoff_lat or lat }};
+    iframe.src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + Math.min(lng, dl) + ',' + Math.min(lat, dlat2) + ',' + Math.max(lng, dl) + ',' + Math.max(lat, dlat2) + '&layer=transportmap&marker=' + lat + ',' + lng;
+    {% else %}
+    iframe.src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + (lng-0.01) + ',' + (lat-0.01) + ',' + (lng+0.01) + ',' + (lat+0.01) + '&layer=transportmap&marker=' + lat + ',' + lng;
+    {% endif %}
+
+    container.appendChild(iframe);
+    if (loading) loading.style.display = 'none';
+  } else {
+    if (loading) loading.textContent = '📍 ' + '{{ current_trip.pickup_address }}';
+  }
+})();
+{% endif %}
+
+// ─── Driver Map (active trip) ───
+{% if user_type == 'driver' and active_trip %}
+(function initDriverMap() {
+  var container = document.getElementById('driver-map-container');
+  var loading = document.getElementById('driver-map-loading');
+  var lat = {{ active_trip.pickup_lat or -34.6037 }};
+  var lng = {{ active_trip.pickup_lng or -58.3816 }};
+
+  if (lat && lng) {
+    var iframe = document.createElement('iframe');
+    iframe.width = '100%';
+    iframe.height = '100%';
+    iframe.frameBorder = '0';
+    iframe.style.border = '0';
+    iframe.style.borderRadius = 'var(--radius-sm)';
+    iframe.src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + (lng-0.01) + ',' + (lat-0.01) + ',' + (lng+0.01) + ',' + (lat+0.01) + '&layer=transportmap&marker=' + lat + ',' + lng;
+    container.appendChild(iframe);
+    if (loading) loading.style.display = 'none';
+  } else {
+    if (loading) loading.textContent = '📍 ' + '{{ active_trip.pickup_address }}';
+  }
+})();
+{% endif %}
+
+// ─── Driver ETA poll ───
+{% if user_type == 'passenger' and current_trip and current_trip.status == 'accepted' %}
+(function pollDriverEta() {
+  fetch('/api/trip/{{ current_trip.id }}/driver-eta')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var badge = document.getElementById('eta-badge');
+      if (badge) {
+        if (data.eta_min) {
+          badge.innerHTML = '🛵 Tu conductor llegará en aproximadamente <strong>' + data.eta_min + ' min</strong>';
+        } else {
+          badge.innerHTML = '🛵 Conductor en camino';
+        }
+      }
+    })
+    .catch(function() {});
+  setTimeout(pollDriverEta, 15000);
 })();
 {% endif %}
 </script>

@@ -15,14 +15,10 @@ def setup():
     print("=== Setup MotoTaxi ===\n")
     
     db_url = os.environ.get('DATABASE_URL')
-    mysql_password = os.environ.get('MYSQL_PASSWORD')
-    mysql_user = os.environ.get('MYSQL_USER')
-    if mysql_user in (None, '', 'tu_usuario') or mysql_password is None:
-        print("ERROR: Tu archivo backend/.env aún contiene credenciales de ejemplo o falta MYSQL_PASSWORD.")
-        print("Edita backend/.env y reemplaza MYSQL_USER y MYSQL_PASSWORD con tus datos de MySQL.")
+    if not db_url or db_url == 'mysql+pymysql://root:contraseña@127.0.0.1:3306/mototaxi':
+        print("ERROR: Tu archivo backend/.env aún contiene credenciales de ejemplo.")
+        print("Edita backend/.env y reemplaza DATABASE_URL con tus datos de MySQL.")
         print("Ejemplo:")
-        print("  MYSQL_USER=root")
-        print("  MYSQL_PASSWORD=tu_contraseña")
         print("  DATABASE_URL=mysql+pymysql://root:tu_contraseña@127.0.0.1:3306/mototaxi")
         sys.exit(1)
     if not db_url:

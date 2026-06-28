@@ -39,6 +39,19 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
 
+    os.makedirs(os.path.join(base_dir, 'static', 'uploads'), exist_ok=True)
+
+    @app.template_filter('status_label')
+    def status_label_filter(status):
+        labels = {
+            'requested': 'Solicitado',
+            'accepted': 'Aceptado',
+            'ongoing': 'En curso',
+            'completed': 'Completado',
+            'cancelled': 'Cancelado',
+        }
+        return labels.get(status, status)
+
     with app.app_context():
         db.create_all()
 

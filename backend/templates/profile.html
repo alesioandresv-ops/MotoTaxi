@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Perfil — MotoTaxi{% endblock %}
+{% block content %}
+<div class="dashboard page-transition">
+  <div class="container">
+    <nav class="navbar">
+      <div class="navbar-brand">🏍️ MotoTaxi</div>
+      <div class="navbar-center">
+        <span class="navbar-user">👤 {{ user.name }}</span>
+      </div>
+      <div class="navbar-actions">
+        <a href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</a>
+        <a href="/logout" class="btn btn-ghost btn-sm">Salir</a>
+      </div>
+    </nav>
+
+    <div class="dashboard-content">
+      <div class="profile-header">
+        <div class="profile-avatar">
+          {% if user.profile_picture %}
+          <img src="{{ user.profile_picture }}" alt="{{ user.name }}">
+          {% else %}
+          <div class="avatar-placeholder">{{ user.name[0]|upper }}</div>
+          {% endif %}
+        </div>
+        <div class="profile-info">
+          <h2>{{ user.name }}</h2>
+          <p class="profile-email">{{ user.email }}</p>
+          <div class="profile-meta">
+            <span>⭐ {{ user.rating_avg }} ({{ user.rating_count }} reseñas)</span>
+            <span>📱 {{ user.phone or 'Sin teléfono' }}</span>
+          </div>
+        </div>
+        <a href="/profile/edit" class="btn btn-primary">✏️ Editar Perfil</a>
+      </div>
+
+      {% if user_type == 'driver' %}
+      <div class="card" style="margin-top:24px;">
+        <div class="card-title">🏍️ Información de la moto</div>
+        <div class="driver-info-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <p><strong>Marca:</strong> {{ user.moto_marca }}</p>
+          <p><strong>Modelo:</strong> {{ user.moto_modelo }}</p>
+          <p><strong>Color:</strong> {{ user.moto_color }}</p>
+          <p><strong>Placa:</strong> {{ user.placa }}</p>
+          <p><strong>Cilindrada:</strong> {{ user.moto_cilindrada }}</p>
+          <p><strong>Casco:</strong> {{ 'Sí' if user.tiene_casco else 'No' }}</p>
+          <p><strong>Seguro:</strong> {{ 'Sí' if user.seguro_moto else 'No' }}</p>
+          <p><strong>Carnet:</strong> {{ user.carnet_conducir }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-title">⭐ Reseñas recibidas ({{ reviews|length }})</div>
+        {% if reviews %}
+        <div class="review-list">
+          {% for review in reviews %}
+          <div class="review-item">
+            <div class="review-header">
+              <span class="review-stars">
+                {% for i in range(5) %}
+                  {% if i < review.rating %}★{% else %}☆{% endif %}
+                {% endfor %}
+              </span>
+              <span class="review-role">{{ 'Pasajero' if review.role == 'passenger' else 'Conductor' }}</span>
+            </div>
+            {% if review.comment %}
+            <p class="review-comment">{{ review.comment }}</p>
+            {% endif %}
+            <p class="review-date">{{ review.created_at.strftime('%d/%m/%Y') }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="icon">📝</div>
+          <p>Aún no tienes reseñas</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-title">📋 Viajes recientes ({{ trips|length }})</div>
+        {% if trips %}
+        <div class="trip-list">
+          {% for trip in trips %}
+          <div class="trip-item">
+            <div class="trip-item-info">
+              <p><strong>📍 {{ trip.pickup_address }}</strong></p>
+              <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
+              <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%d/%m/%Y %H:%M') }}</p>
+            </div>
+            <div class="trip-item-right">
+              <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
+              <span class="badge badge-{{ trip.status }}">{{ trip.status|status_label }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <p>No tienes viajes aún</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

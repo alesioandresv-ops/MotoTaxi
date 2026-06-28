@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Verificar correo — MotoTaxi{% endblock %}
+{% block content %}
+<main class="auth-page">
+  <div class="auth-card" style="max-width:420px;">
+    <div class="auth-logo">
+      <span class="icon">✉️</span>
+      <h1>Verifica tu correo</h1>
+      <p>Hemos enviado un código a <strong>{{ email }}</strong></p>
+    </div>
+
+    <form class="form" method="post">
+      <div class="input-group">
+        <label>Código de verificación</label>
+        <input type="text" name="code" required placeholder="Ingresa el código de 6 dígitos" maxlength="6" style="text-align:center;font-size:1.5rem;letter-spacing:8px;font-weight:700;">
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">Verificar</button>
+    </form>
+
+    <div class="links-row">
+      <p class="muted">¿No recibiste el código? <a href="{{ url_for('auth.login') }}">Reintentar registro</a></p>
+    </div>
+  </div>
+</main>
+{% endblock %}

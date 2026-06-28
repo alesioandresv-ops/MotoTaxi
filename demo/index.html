@@ -5,763 +5,247 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MotoTaxi - Tu App de Mototaxi</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             overflow-x: hidden;
         }
+        .container { width:100%; min-height:100vh; }
+        .page { display:none; min-height:100vh; }
+        .page.active { display:block; }
 
-        .container {
-            width: 100%;
-            min-height: 100vh;
-        }
-
-        /* Login Page */
-        .page {
-            display: none;
-            min-height: 100vh;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
+        .login-container { display:flex; justify-content:center; align-items:center; min-height:100vh; padding:20px; }
         .login-box {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 400px;
-            padding: 40px;
-            animation: slideIn 0.5s ease-out;
+            background: white; border-radius:15px; box-shadow:0 10px 40px rgba(0,0,0,0.3);
+            width:100%; max-width:400px; padding:40px; animation:slideIn 0.5s ease-out;
         }
+        @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .logo { text-align:center; margin-bottom:30px; }
+        .logo h1 { font-size:2.5em; color:#667eea; margin-bottom:10px; }
+        .logo p { color:#666; font-size:0.9em; }
+
+        .form { display:flex; flex-direction:column; gap:15px; }
+        .form h2 { text-align:center; color:#333; margin-bottom:10px; }
+        .form input, .form select { padding:12px; border:1px solid #ddd; border-radius:8px; font-size:1em; transition:border-color 0.3s; }
+        .form input:focus, .form select:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,0.1); }
+        .form button[type="submit"], .btn-primary {
+            padding:12px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white;
+            border:none; border-radius:8px; font-size:1em; font-weight:bold; cursor:pointer; transition:transform 0.2s;
         }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo h1 {
-            font-size: 2.5em;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .logo p {
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .form h2 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .form input,
-        .form select {
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: border-color 0.3s;
-        }
-
-        .form input:focus,
-        .form select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .form button[type="submit"] {
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .form button[type="submit"]:hover {
-            transform: translateY(-2px);
-        }
-
-        .demo-buttons {
-            text-align: center;
-            margin-top: 10px;
-        }
-
-        .demo-buttons p {
-            color: #666;
-            font-size: 0.9em;
-            margin-bottom: 10px;
-        }
-
+        .form button[type="submit"]:hover, .btn-primary:hover { transform:translateY(-2px); }
+        .demo-buttons { text-align:center; margin-top:10px; }
+        .demo-buttons p { color:#666; font-size:0.9em; margin-bottom:10px; }
         .demo-btn {
-            padding: 10px;
-            margin: 5px;
-            border: 2px solid;
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            width: 48%;
-            display: inline-block;
-            transition: all 0.3s;
+            padding:10px; margin:5px; border:2px solid; background:white; border-radius:8px;
+            cursor:pointer; font-weight:bold; transition:all 0.3s;
         }
-
-        .demo-btn.passenger {
-            border-color: #667eea;
-            color: #667eea;
+        .demo-btn.passenger { border-color:#667eea; color:#667eea; }
+        .demo-btn.passenger:hover { background:#667eea; color:white; }
+        .demo-btn.driver { border-color:#764ba2; color:#764ba2; }
+        .demo-btn.driver:hover { background:#764ba2; color:white; }
+        .toggle-btn { background:none; border:none; color:#667eea; cursor:pointer; text-decoration:underline; font-size:0.9em; padding:5px; }
+        .error-message { background:#ff6b6b; color:white; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center; }
+        .success-message { background:#4caf50; color:white; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center; }
+        .toast {
+            position:fixed; top:20px; right:20px; z-index:9999;
+            padding:14px 24px; border-radius:12px; color:white; font-weight:500;
+            box-shadow:0 8px 30px rgba(0,0,0,0.2); animation: slideInRight 0.3s ease-out;
+            max-width:360px;
         }
+        .toast.success { background:#4caf50; }
+        .toast.error { background:#ff6b6b; }
+        .toast.info { background:#2196f3; }
+        @keyframes slideInRight { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
 
-        .demo-btn.passenger:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        .demo-btn.driver {
-            border-color: #764ba2;
-            color: #764ba2;
-        }
-
-        .demo-btn.driver:hover {
-            background: #764ba2;
-            color: white;
-        }
-
-        .toggle-btn {
-            background: none;
-            border: none;
-            color: #667eea;
-            cursor: pointer;
-            text-decoration: underline;
-            font-size: 0.9em;
-            padding: 5px;
-        }
-
-        .error-message {
-            background: #ff6b6b;
-            color: white;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        /* Dashboard Pages */
-        .dashboard {
-            min-height: 100vh;
-            background: #f5f5f5;
-        }
-
+        .dashboard { min-height:100vh; background:#f5f5f5; }
         .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .header-left h1 {
-            margin: 0;
-            font-size: 1.8em;
-        }
-
-        .header-center {
-            display: flex;
-            gap: 30px;
-            align-items: center;
-        }
-
-        .header-right {
-            display: flex;
-            gap: 10px;
-        }
-
-        .header-right button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1em;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .history-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid white;
-        }
-
-        .history-btn:hover {
-            background: white;
-            color: #667eea;
-        }
-
-        .logout-btn {
-            background: #ff6b6b;
-            color: white;
-        }
-
-        .logout-btn:hover {
-            background: #ff5252;
-        }
-
-        .dashboard-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .ride-request-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .map-placeholder {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            min-height: 400px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .map-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .request-form {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .request-form h2 {
-            margin-top: 0;
-            color: #333;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #333;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1em;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .request-btn {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .request-btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .trip-status {
-            background: #f0f4ff;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-
-        .trip-status h3 {
-            margin-top: 0;
-            color: #333;
-        }
-
-        .status-badge {
-            font-weight: bold;
-            padding: 4px 12px;
-            border-radius: 20px;
-            display: inline-block;
-        }
-
-        .status-badge.requested {
-            background: #fff3e0;
-            color: #ff9800;
-        }
-
-        .status-badge.accepted {
-            background: #e8f5e9;
-            color: #4caf50;
-        }
-
-        .status-badge.ongoing {
-            background: #e3f2fd;
-            color: #2196f3;
-        }
-
-        .trip-info {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-        }
-
-        .trip-info p {
-            margin: 8px 0;
-            color: #555;
-        }
-
-        .trip-actions {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            text-align: center;
-        }
-
-        .trip-actions p {
-            margin: 10px 0;
-            color: #555;
-        }
-
-        .trip-actions button,
-        .cancel-btn {
-            padding: 10px 20px;
-            margin-top: 10px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .simulate-btn {
-            background: #4caf50;
-            color: white;
-            width: 100%;
-        }
-
-        .simulate-btn:hover {
-            background: #45a049;
-        }
-
-        .cancel-btn {
-            background: #ff6b6b;
-            color: white;
-            width: 100%;
-        }
-
-        .cancel-btn:hover {
-            background: #ff5252;
-        }
-
-        .info-section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            grid-column: 1 / -1;
-        }
-
-        .info-section h3 {
-            color: #667eea;
-            margin-top: 0;
-        }
-
-        .info-section ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .info-section li {
-            padding: 10px 0;
-            color: #555;
-            font-size: 1.05em;
-        }
-
-        .history-section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .history-section h2 {
-            color: #333;
-            margin-top: 0;
-        }
-
-        .trips-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .trip-card {
-            background: #f9f9f9;
-            border: 1px solid #eee;
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.3s;
-        }
-
-        .trip-card:hover {
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .trip-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .fare {
-            font-size: 1.3em;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .trip-card p {
-            margin: 8px 0;
-            color: #555;
-        }
-
-        /* Driver Dashboard */
-        .driver-header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        }
-
-        .driver-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
-        }
-
-        .main-section {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .status-card,
-        .active-trip-card,
-        .pending-trips-card,
-        .stats-card,
-        .history-card,
-        .info-card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .status-card h2,
-        .active-trip-card h2,
-        .pending-trips-card h2,
-        .stats-card h3,
-        .history-card h3,
-        .info-card h3 {
-            margin-top: 0;
-            color: #1e3c72;
-        }
-
-        .status-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .status-info p {
-            margin: 10px 0;
-            color: #555;
-        }
-
-        .active-trip-card {
-            background: linear-gradient(135deg, #fff5e1 0%, #ffe0b2 100%);
-            border-left: 4px solid #ff9800;
-        }
-
-        .trip-details {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 15px 0;
-        }
-
-        .trip-details p {
-            margin: 10px 0;
-            color: #555;
-        }
-
-        .trip-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .start-btn,
-        .complete-btn,
-        .accept-btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-            flex: 1;
-        }
-
-        .start-btn {
-            background: #2196f3;
-            color: white;
-        }
-
-        .start-btn:hover {
-            background: #1976d2;
-        }
-
-        .complete-btn {
-            background: #4caf50;
-            color: white;
-        }
-
-        .complete-btn:hover {
-            background: #45a049;
-        }
-
-        .accept-btn {
-            background: #4caf50;
-            color: white;
-            flex: 0.3;
-        }
-
-        .accept-btn:hover {
-            background: #45a049;
-        }
-
-        .trips-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white;
+            padding:20px; display:flex; justify-content:space-between; align-items:center;
+            box-shadow:0 4px 15px rgba(0,0,0,0.2); flex-wrap:wrap; gap:15px;
+        }
+        .driver-header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); }
+        .header-left h1 { margin:0; font-size:1.8em; }
+        .header-center { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+        .header-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .header-right button, .btn-sm {
+            padding:8px 16px; border:none; border-radius:8px; cursor:pointer;
+            font-size:0.9em; font-weight:bold; transition:all 0.3s;
+        }
+        .profile-btn { background:rgba(255,255,255,0.2); color:white; }
+        .profile-btn:hover { background:white; color:#667eea; }
+        .history-btn { background:rgba(255,255,255,0.2); color:white; border:2px solid white; }
+        .history-btn:hover { background:white; color:#667eea; }
+        .logout-btn { background:#ff6b6b; color:white; }
+        .logout-btn:hover { background:#ff5252; }
+
+        .dashboard-content { max-width:1200px; margin:0 auto; padding:20px; }
+
+        .ride-request-section { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+        .map-container { background:white; border-radius:15px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1); }
+        .map-container iframe { width:100%; height:100%; border:none; display:block; }
+        .request-form { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); }
+        .request-form h2 { margin-top:0; color:#333; }
+        .input-group { margin-bottom:20px; }
+        .input-group label { display:block; margin-bottom:8px; font-weight:bold; color:#333; }
+        .input-group input { width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:1em; }
+        .input-group input:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,0.1); }
+
+        .request-btn, .btn-block {
+            width:100%; padding:15px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+            color:white; border:none; border-radius:8px; font-size:1.1em; font-weight:bold; cursor:pointer; transition:transform 0.2s;
+        }
+        .request-btn:hover { transform:translateY(-2px); }
+        .btn-danger { background:#ff6b6b; color:white; }
+        .btn-danger:hover { background:#ff5252; }
+        .btn-success { background:#4caf50; color:white; }
+        .btn-success:hover { background:#45a049; }
+
+        .trip-status { background:#f0f4ff; padding:20px; border-radius:8px; border-left:4px solid #667eea; }
+        .trip-status h3 { margin-top:0; color:#333; }
+        .status-badge { font-weight:bold; padding:4px 12px; border-radius:20px; display:inline-block; }
+        .status-badge.requested { background:#fff3e0; color:#ff9800; }
+        .status-badge.accepted { background:#e8f5e9; color:#4caf50; }
+        .status-badge.ongoing { background:#e3f2fd; color:#2196f3; }
+        .status-badge.completed { background:#f3e5f5; color:#9c27b0; }
+        .status-badge.cancelled { background:#fbe9e7; color:#e64a19; }
+
+        .trip-info { background:white; padding:15px; border-radius:8px; margin:15px 0; }
+        .trip-info p { margin:8px 0; color:#555; }
+        .trip-actions { background:white; padding:15px; border-radius:8px; margin:15px 0; text-align:center; }
+        .trip-actions p { margin:10px 0; color:#555; }
+        .trip-actions button, .cancel-btn { padding:10px 20px; margin-top:10px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; transition:all 0.3s; }
+        .simulate-btn { background:#4caf50; color:white; width:100%; }
+        .simulate-btn:hover { background:#45a049; }
+        .cancel-btn { background:#ff6b6b; color:white; width:100%; }
+        .cancel-btn:hover { background:#ff5252; }
+
+        .info-section { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); grid-column:1/-1; }
+        .info-section h3 { color:#667eea; margin-top:0; }
+        .info-section ul { list-style:none; padding:0; }
+        .info-section li { padding:10px 0; color:#555; font-size:1.05em; }
+
+        .history-section { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); }
+        .history-section h2 { color:#333; margin-top:0; }
+        .trips-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; }
+
+        .trip-card { background:#f9f9f9; border:1px solid #eee; border-radius:12px; padding:20px; transition:all 0.3s; }
+        .trip-card:hover { box-shadow:0 4px 15px rgba(0,0,0,0.1); transform:translateY(-2px); }
+        .trip-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+        .fare { font-size:1.3em; font-weight:bold; color:#667eea; }
+        .trip-card p { margin:8px 0; color:#555; }
+        .rate-btn { font-size:0.8em; padding:4px 12px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; }
+
+        .driver-content { max-width:1400px; margin:0 auto; padding:20px; display:grid; grid-template-columns:1fr 300px; gap:20px; }
+        .main-section { display:flex; flex-direction:column; gap:20px; }
+        .sidebar { display:flex; flex-direction:column; gap:20px; }
+        .status-card, .active-trip-card, .pending-trips-card, .stats-card, .history-card, .info-card {
+            background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1);
+        }
+        .status-card h2, .active-trip-card h2, .pending-trips-card h2, .stats-card h3, .history-card h3, .info-card h3 { margin-top:0; color:#1e3c72; }
+        .status-info { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+        .status-info p { margin:10px 0; color:#555; }
+        .active-trip-card { background:linear-gradient(135deg,#fff5e1 0%,#ffe0b2 100%); border-left:4px solid #ff9800; }
+        .trip-details { background:white; padding:20px; border-radius:8px; margin:15px 0; }
+        .trip-details p { margin:10px 0; color:#555; }
+        .trip-actions-row { display:flex; gap:10px; margin-top:20px; }
+        .start-btn, .complete-btn, .accept-btn { padding:12px 20px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; transition:all 0.3s; flex:1; }
+        .start-btn { background:#2196f3; color:white; }
+        .start-btn:hover { background:#1976d2; }
+        .complete-btn { background:#4caf50; color:white; }
+        .complete-btn:hover { background:#45a049; }
+        .accept-btn { background:#4caf50; color:white; flex:0.3; }
+        .accept-btn:hover { background:#45a049; }
 
         .trip-item {
-            background: #f9f9f9;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s;
+            background:#f9f9f9; border:1px solid #eee; border-radius:8px; padding:15px;
+            display:flex; justify-content:space-between; align-items:center; transition:all 0.3s;
         }
+        .trip-item:hover { box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+        .trip-item-info { flex:1; }
+        .trip-item-info p { margin:5px 0; color:#555; }
+        .stat { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #eee; }
+        .stat .label { color:#666; font-size:0.9em; }
+        .stat .value { color:#1e3c72; font-weight:bold; font-size:1.2em; }
 
-        .trip-item:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
+        .completed-trips { display:flex; flex-direction:column; gap:10px; }
+        .completed-trip { background:#f5f5f5; padding:10px; border-radius:6px; border-left:3px solid #4caf50; }
+        .completed-trip p { margin:3px 0; color:#555; font-size:0.9em; }
 
-        .trip-info {
-            flex: 1;
-        }
-
-        .trip-info p {
-            margin: 5px 0;
-            color: #555;
-        }
-
-        .stat {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .stat .label {
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .stat .value {
-            color: #1e3c72;
-            font-weight: bold;
-            font-size: 1.2em;
-        }
-
-        .completed-trips {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .completed-trip {
-            background: #f5f5f5;
-            padding: 10px;
-            border-radius: 6px;
-            border-left: 3px solid #4caf50;
-        }
-
-        .completed-trip p {
-            margin: 3px 0;
-            color: #555;
-            font-size: 0.9em;
-        }
-
-        .info-card ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .info-card li {
-            padding: 8px 0;
-            color: #555;
-            border-bottom: 1px solid #eee;
-            font-size: 0.9em;
-        }
-
-        .info-card li:before {
-            content: '✓ ';
-            color: #4caf50;
-            font-weight: bold;
-            margin-right: 5px;
-        }
+        .info-card ul { list-style:none; padding:0; margin:0; }
+        .info-card li { padding:8px 0; color:#555; border-bottom:1px solid #eee; font-size:0.9em; }
+        .info-card li:before { content:'✓ '; color:#4caf50; font-weight:bold; margin-right:5px; }
 
         .online-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
+            background:rgba(255,255,255,0.2); color:white; border:2px solid white;
+            padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:bold; transition:all 0.3s;
+        }
+        .online-btn.active { background:#4caf50; border-color:#4caf50; }
+
+        .eta-badge {
+            display:inline-block; background:#4caf50; color:white; padding:6px 16px;
+            border-radius:20px; font-size:0.9em; font-weight:600; margin-top:8px;
         }
 
-        .online-btn.active {
-            background: #4caf50;
-            border-color: #4caf50;
+        .nearby-drivers { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+        .driver-mini-card {
+            display:flex; align-items:center; gap:12px; padding:10px 14px;
+            background:#f9f9f9; border-radius:8px; border:1px solid #eee;
         }
+        .driver-mini-card .avatar { width:40px; height:40px; border-radius:50%; background:#667eea; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+        .driver-mini-card .info { flex:1; }
+        .driver-mini-card .info h4 { margin:0; font-size:0.95em; }
+        .driver-mini-card .info p { margin:0; font-size:0.8em; color:#666; }
+        .driver-mini-card .dist { font-weight:bold; color:#667eea; }
+
+        .review-modal {
+            position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex;
+            align-items:center; justify-content:center; z-index:100; padding:20px;
+        }
+        .review-modal.hidden { display:none; }
+        .review-content {
+            background:white; border-radius:15px; padding:32px; max-width:400px;
+            width:100%; animation:slideIn 0.3s ease-out;
+        }
+        .review-content h3 { text-align:center; margin-bottom:4px; }
+        .review-content p.sub { text-align:center; color:#666; margin-bottom:20px; }
+        .star-select { display:flex; gap:4px; font-size:2rem; justify-content:center; cursor:pointer; margin-bottom:16px; }
+        .star-select span { color:#ddd; transition:color 0.2s; }
+        .star-select span.active, .star-select span:hover { color:#f59e0b; }
+        .review-content textarea {
+            width:100%; padding:12px; border:1px solid #ddd; border-radius:8px;
+            font-size:0.9em; resize:vertical; min-height:80px; margin-bottom:16px;
+        }
+        .review-actions { display:flex; gap:8px; }
+        .review-actions button { flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; transition:all 0.3s; }
+        .review-actions .btn-submit { background:#667eea; color:white; }
+        .review-actions .btn-cancel { background:#eee; color:#666; }
+
+        .profile-section { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); max-width:600px; margin:20px auto; }
+        .profile-section h2 { color:#333; margin-bottom:20px; }
+        .profile-field { margin-bottom:16px; }
+        .profile-field label { display:block; font-weight:bold; color:#555; margin-bottom:4px; font-size:0.9em; }
+        .profile-field .value { color:#333; font-size:1.05em; }
+        .profile-picture { width:100px; height:100px; border-radius:50%; background:#667eea; color:white; display:flex; align-items:center; justify-content:center; font-size:2.5rem; font-weight:bold; margin:0 auto 20px; overflow:hidden; }
+        .profile-picture img { width:100%; height:100%; object-fit:cover; }
+
+        .stars-display { color:#f59e0b; font-size:1.1rem; letter-spacing:2px; }
 
         @media (max-width: 768px) {
-            .dashboard-header,
-            .driver-header {
-                flex-direction: column;
-                gap: 15px;
-            }
-
-            .header-center {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .ride-request-section {
-                grid-template-columns: 1fr;
-            }
-
-            .driver-content {
-                grid-template-columns: 1fr;
-            }
-
-            .status-info {
-                grid-template-columns: 1fr;
-            }
-
-            .trip-item {
-                flex-direction: column;
-                align-items: flex-start;
-            }
+            .dashboard-header, .driver-header { flex-direction:column; gap:15px; }
+            .header-center { flex-direction:column; gap:10px; }
+            .ride-request-section { grid-template-columns:1fr; }
+            .driver-content { grid-template-columns:1fr; }
+            .status-info { grid-template-columns:1fr; }
+            .trip-item { flex-direction:column; align-items:flex-start; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Login Page -->
+        <!-- ═══════ LOGIN PAGE ═══════ -->
         <div id="login-page" class="page active">
             <div class="login-container">
                 <div class="login-box">
@@ -769,41 +253,34 @@
                         <h1>🏍️ MotoTaxi</h1>
                         <p>Tu app de mototaxi de confianza</p>
                     </div>
-
-                    <div id="error-message" class="error-message" style="display: none;"></div>
-
+                    <div id="error-message" class="error-message" style="display:none;"></div>
                     <form class="form" id="login-form">
                         <h2>Inicia Sesión</h2>
                         <input type="email" id="login-email" placeholder="Correo electrónico" required>
                         <input type="password" id="login-password" placeholder="Contraseña" required>
                         <button type="submit">Inicia Sesión</button>
-
                         <div class="demo-buttons">
                             <p>O prueba con demo:</p>
-                            <button type="button" class="demo-btn passenger" onclick="loginDemo('passenger')">
-                                👤 Demo Pasajero
-                            </button>
-                            <button type="button" class="demo-btn driver" onclick="loginDemo('driver')">
-                                🏍️ Demo Conductor
-                            </button>
+                            <button type="button" class="demo-btn passenger" onclick="loginDemo('passenger')">👤 Demo Pasajero</button>
+                            <button type="button" class="demo-btn driver" onclick="loginDemo('driver')">🏍️ Demo Conductor</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
 
-        <!-- Passenger Dashboard -->
+        <!-- ═══════ PASSENGER DASHBOARD ═══════ -->
         <div id="passenger-page" class="page">
             <div class="dashboard">
                 <header class="dashboard-header">
-                    <div class="header-left">
-                        <h1>🏍️ MotoTaxi</h1>
-                    </div>
+                    <div class="header-left"><h1>🏍️ MotoTaxi</h1></div>
                     <div class="header-center">
-                        <span class="user-info">👤 <span id="passenger-name"></span></span>
-                        <span class="rating">⭐ <span id="passenger-rating"></span></span>
+                        <span>👤 <span id="passenger-name"></span></span>
+                        <span>⭐ <span id="passenger-rating"></span></span>
+                        <span id="passenger-location-status" style="font-size:0.8em;color:rgba(255,255,255,0.7);"></span>
                     </div>
                     <div class="header-right">
+                        <button class="profile-btn" onclick="showPassengerProfile()">👤 Perfil</button>
                         <button class="history-btn" onclick="showHistory('passenger')">📋 Historial</button>
                         <button class="logout-btn" onclick="logout()">Salir</button>
                     </div>
@@ -812,72 +289,90 @@
                 <div class="dashboard-content">
                     <div id="passenger-ride-section">
                         <div class="ride-request-section">
-                            <div class="map-placeholder">
-                                <div class="map-icon">📍</div>
-                                <p>Mapa en tiempo real</p>
+                            <div class="map-container" id="passenger-map-main" style="min-height:400px;">
+                                <div id="passenger-map-content" style="display:flex;align-items:center;justify-content:center;height:400px;color:#999;flex-direction:column;gap:12px;">
+                                    <div style="font-size:3em;">📍</div>
+                                    <p>Mapa en tiempo real</p>
+                                    <p id="map-location-text" style="font-size:0.85em;">Esperando ubicación...</p>
+                                </div>
                             </div>
 
                             <div class="request-form">
                                 <h2>Solicitar Viaje</h2>
-                                
                                 <div id="passenger-trip-status"></div>
-
                                 <div id="passenger-request-form">
                                     <div class="input-group">
                                         <label>📍 Ubicación de Recogida</label>
                                         <input type="text" id="pickup-address" placeholder="Ej: Calle Principal 123">
                                     </div>
-
                                     <div class="input-group">
-                                        <label>🎯 Ubicación de Destino</label>
+                                        <label>🎯 Destino</label>
                                         <input type="text" id="dropoff-address" placeholder="Ej: Avenida Central 456">
                                     </div>
-
+                                    <div id="fare-estimate" style="display:none;margin-bottom:12px;padding:12px;background:#f0f4ff;border-radius:8px;text-align:center;">
+                                        <span style="color:#666;">Tarifa estimada:</span>
+                                        <span style="font-size:1.3rem;font-weight:700;color:#667eea;" id="fare-amount">$0.00</span>
+                                    </div>
+                                    <div id="nearby-drivers-container" style="margin-bottom:16px;"></div>
                                     <button class="request-btn" onclick="requestTrip()">Solicitar Viaje</button>
                                 </div>
-                            </div>
-
-                            <div class="info-section">
-                                <h3>¿Por qué elegir MotoTaxi?</h3>
-                                <ul>
-                                    <li>✅ Rápido y eficiente</li>
-                                    <li>✅ Conductores certificados</li>
-                                    <li>✅ Precios justos y transparentes</li>
-                                    <li>✅ Seguridad garantizada</li>
-                                    <li>✅ Soporte 24/7</li>
-                                </ul>
                             </div>
                         </div>
                     </div>
 
-                    <div id="passenger-history-section" style="display: none;">
+                    <div id="passenger-history-section" style="display:none;">
                         <div class="history-section">
-                            <h2>Historial de Viajes</h2>
+                            <h2>📋 Historial de Viajes</h2>
                             <div id="passenger-trips-list"></div>
+                        </div>
+                    </div>
+
+                    <div id="passenger-profile-section" style="display:none;">
+                        <div class="profile-section">
+                            <h2>👤 Mi Perfil</h2>
+                            <div class="profile-picture" id="passenger-profile-pic"><span id="passenger-profile-initial">J</span></div>
+                            <div class="profile-field"><label>Nombre</label><div class="value" id="passenger-profile-name"></div></div>
+                            <div class="profile-field"><label>Email</label><div class="value" id="passenger-profile-email"></div></div>
+                            <div class="profile-field"><label>Teléfono</label><div class="value" id="passenger-profile-phone"></div></div>
+                            <div class="profile-field"><label>Calificación</label><div class="value" id="passenger-profile-rating"></div></div>
+                            <div class="profile-field"><label>Reseñas recibidas</label><div id="passenger-profile-reviews"></div></div>
+                            <button class="btn-primary btn-block" onclick="editPassengerProfile()" style="margin-top:16px;">✏️ Editar Perfil</button>
+                            <button class="history-btn" onclick="showPassengerDashboard()" style="margin-top:8px;width:100%;border:1px solid #ddd;color:#666;">← Volver</button>
+                        </div>
+                    </div>
+
+                    <div id="passenger-edit-profile-section" style="display:none;">
+                        <div class="profile-section">
+                            <h2>✏️ Editar Perfil</h2>
+                            <div class="form">
+                                <div class="input-group"><label>Nombre</label><input type="text" id="edit-passenger-name"></div>
+                                <div class="input-group"><label>Teléfono</label><input type="tel" id="edit-passenger-phone"></div>
+                                <button class="btn-primary btn-block" onclick="savePassengerProfile()">Guardar Cambios</button>
+                                <button class="history-btn" onclick="showPassengerProfile()" style="margin-top:8px;width:100%;border:1px solid #ddd;color:#666;">← Cancelar</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Driver Dashboard -->
+        <!-- ═══════ DRIVER DASHBOARD ═══════ -->
         <div id="driver-page" class="page">
             <div class="dashboard">
                 <header class="driver-header">
-                    <div class="header-left">
-                        <h1>🏍️ MotoTaxi Conductor</h1>
-                    </div>
+                    <div class="header-left"><h1>🏍️ MotoTaxi Conductor</h1></div>
                     <div class="header-center">
-                        <span class="user-info">👤 <span id="driver-name"></span></span>
-                        <span class="rating">⭐ <span id="driver-rating"></span></span>
+                        <span>👤 <span id="driver-name"></span></span>
+                        <span>⭐ <span id="driver-rating"></span></span>
+                        <button class="online-btn" id="online-btn" onclick="toggleOnline()">⚫ Fuera de Línea</button>
                     </div>
                     <div class="header-right">
-                        <button class="online-btn" id="online-btn" onclick="toggleOnline()">⚫ Fuera de Línea</button>
+                        <button class="profile-btn" onclick="showDriverProfile()">👤 Perfil</button>
                         <button class="logout-btn" onclick="logout()">Salir</button>
                     </div>
                 </header>
 
-                <div class="dashboard-content">
+                <div class="dashboard-content" id="driver-dashboard-content">
                     <div class="driver-content">
                         <div class="main-section">
                             <div class="status-card">
@@ -889,11 +384,11 @@
                                     <p><strong>Calificación:</strong> ⭐ <span id="driver-rating-value"></span></p>
                                 </div>
                             </div>
-
-                            <div id="driver-main-content">
-                                <div class="pending-trips-card">
-                                    <h2>Viajes Disponibles (<span id="pending-trips-count">0</span>)</h2>
-                                    <div id="driver-pending-trips"></div>
+                            <div id="driver-main-content"></div>
+                            <div class="map-container" id="driver-map-section" style="min-height:300px;display:none;">
+                                <div id="driver-map-content" style="display:flex;align-items:center;justify-content:center;height:300px;color:#999;flex-direction:column;gap:12px;">
+                                    <div style="font-size:2em;">📍</div>
+                                    <p>Tu ubicación aparecerá aquí</p>
                                 </div>
                             </div>
                         </div>
@@ -901,21 +396,12 @@
                         <div class="sidebar">
                             <div class="stats-card">
                                 <h3>📊 Estadísticas</h3>
-                                <div class="stat">
-                                    <span class="label">Viajes Hoy:</span>
-                                    <span class="value" id="stats-trips">0</span>
-                                </div>
-                                <div class="stat">
-                                    <span class="label">Ganancias:</span>
-                                    <span class="value">$<span id="stats-earnings">0.00</span></span>
-                                </div>
-                                <div class="stat">
-                                    <span class="label">Promedio por Viaje:</span>
-                                    <span class="value">$<span id="stats-average">0.00</span></span>
-                                </div>
+                                <div class="stat"><span class="label">Viajes Hoy:</span><span class="value" id="stats-trips">0</span></div>
+                                <div class="stat"><span class="label">Ganancias:</span><span class="value">$<span id="stats-earnings">0.00</span></span></div>
+                                <div class="stat"><span class="label">Promedio por Viaje:</span><span class="value">$<span id="stats-average">0.00</span></span></div>
                             </div>
 
-                            <div class="history-card">
+                            <div class="history-card" id="driver-history-section">
                                 <h3>📋 Últimos Viajes (<span id="completed-trips-count">0</span>)</h3>
                                 <div id="driver-completed-trips-list"></div>
                             </div>
@@ -923,13 +409,45 @@
                             <div class="info-card">
                                 <h3>💡 Consejos</h3>
                                 <ul>
-                                    <li>Sé puntual siempre</li>
-                                    <li>Ofrece un viaje seguro</li>
-                                    <li>Mantén tu vehículo limpio</li>
+                                    <li>Usa siempre el casco</li>
+                                    <li>Respeta las señales de tránsito</li>
+                                    <li>Mantén tu moto en buen estado</li>
                                     <li>Sé amable con los pasajeros</li>
-                                    <li>Respeta los límites de velocidad</li>
+                                    <li>Mantén las manos en el manillar</li>
                                 </ul>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="driver-profile-section" style="display:none;max-width:1200px;margin:0 auto;padding:20px;">
+                    <div class="profile-section" style="max-width:600px;">
+                        <h2>🏍️ Mi Perfil de Conductor</h2>
+                        <div class="profile-picture" id="driver-profile-pic"><span id="driver-profile-initial">C</span></div>
+                        <div class="profile-field"><label>Nombre</label><div class="value" id="driver-profile-name"></div></div>
+                        <div class="profile-field"><label>Email</label><div class="value" id="driver-profile-email"></div></div>
+                        <div class="profile-field"><label>Teléfono</label><div class="value" id="driver-profile-phone"></div></div>
+                        <div class="profile-field"><label>Calificación</label><div class="value" id="driver-profile-rating"></div></div>
+                        <div class="profile-field"><label>Moto</label><div class="value" id="driver-profile-moto"></div></div>
+                        <div class="profile-field"><label>Placa</label><div class="value" id="driver-profile-placa"></div></div>
+                        <div class="profile-field"><label>Reseñas recibidas</label><div id="driver-profile-reviews"></div></div>
+                        <button class="btn-primary btn-block" onclick="editDriverProfile()" style="margin-top:16px;">✏️ Editar Perfil</button>
+                        <button class="history-btn" onclick="showDriverDashboard()" style="margin-top:8px;width:100%;border:1px solid #ddd;color:#666;">← Volver</button>
+                    </div>
+                </div>
+
+                <div id="driver-edit-profile-section" style="display:none;max-width:1200px;margin:0 auto;padding:20px;">
+                    <div class="profile-section" style="max-width:600px;">
+                        <h2>✏️ Editar Perfil</h2>
+                        <div class="form">
+                            <div class="input-group"><label>Nombre</label><input type="text" id="edit-driver-name"></div>
+                            <div class="input-group"><label>Teléfono</label><input type="tel" id="edit-driver-phone"></div>
+                            <div class="input-group"><label>Marca de moto</label><input type="text" id="edit-driver-marca"></div>
+                            <div class="input-group"><label>Modelo</label><input type="text" id="edit-driver-modelo"></div>
+                            <div class="input-group"><label>Color</label><input type="text" id="edit-driver-color"></div>
+                            <div class="input-group"><label>Placa</label><input type="text" id="edit-driver-placa"></div>
+                            <button class="btn-primary btn-block" onclick="saveDriverProfile()">Guardar Cambios</button>
+                            <button class="history-btn" onclick="showDriverProfile()" style="margin-top:8px;width:100%;border:1px solid #ddd;color:#666;">← Cancelar</button>
                         </div>
                     </div>
                 </div>
@@ -937,8 +455,38 @@
         </div>
     </div>
 
+    <!-- ═══════ REVIEW MODAL ═══════ -->
+    <div id="review-modal" class="review-modal hidden">
+        <div class="review-content">
+            <h3>⭐ Calificar viaje</h3>
+            <p class="sub">Tu opinión ayuda a mejorar el servicio</p>
+            <div class="star-select" id="star-select">
+                <span data-value="1">☆</span>
+                <span data-value="2">☆</span>
+                <span data-value="3">☆</span>
+                <span data-value="4">☆</span>
+                <span data-value="5">☆</span>
+            </div>
+            <textarea id="review-comment" placeholder="Escribe un comentario (opcional)..."></textarea>
+            <div class="review-actions">
+                <button class="btn-submit" onclick="submitReview()">Enviar</button>
+                <button class="btn-cancel" onclick="closeReviewModal()">Cancelar</button>
+            </div>
+            <input type="hidden" id="review-trip-id" value="">
+            <input type="hidden" id="review-role" value="">
+            <input type="hidden" id="review-rating" value="0">
+        </div>
+    </div>
+
     <script>
-        // Estado de la aplicación
+        // ═══════ STATE ═══════
+        const STATUS_LABEL = {
+            requested: 'Solicitado',
+            accepted: 'Aceptado',
+            ongoing: 'En curso',
+            completed: 'Completado',
+            cancelled: 'Cancelado'
+        };
         let appState = {
             user: null,
             currentTrip: null,
@@ -946,55 +494,97 @@
             completedTrips: [],
             isDriverOnline: false,
             earnings: 0,
+            userLat: null,
+            userLng: null,
             pendingTrips: [
-                {
-                    id: '1',
-                    pickupAddress: 'Calle Principal 123',
-                    dropoffAddress: 'Centro Comercial XYZ',
-                    fare: 25.50,
-                    status: 'requested'
-                },
-                {
-                    id: '2',
-                    pickupAddress: 'Hospital General',
-                    dropoffAddress: 'Terminal de Autobuses',
-                    fare: 18.75,
-                    status: 'requested'
-                }
-            ]
+                { id: '1', pickupAddress: 'Calle Principal 123', dropoffAddress: 'Centro Comercial XYZ', fare: 25.50, status: 'requested', lat: 19.4326, lng: -99.1332 },
+                { id: '2', pickupAddress: 'Hospital General', dropoffAddress: 'Terminal de Autobuses', fare: 18.75, status: 'requested', lat: 19.4340, lng: -99.1400 },
+                { id: '3', pickupAddress: 'Plaza Central', dropoffAddress: 'Universidad', fare: 22.00, status: 'requested', lat: 19.4300, lng: -99.1300 },
+            ],
+            nearbyDrivers: [
+                { id: 1, name: 'Miguel R.', rating: 4.9, moto: 'Yamaha YZF-R3', color: 'Azul', placa: 'XYZ789', lat: 19.4300, lng: -99.1350, dist: 0.8 },
+                { id: 2, name: 'Ana G.', rating: 4.7, moto: 'Honda CB 190', color: 'Negra', placa: 'ABC456', lat: 19.4330, lng: -99.1380, dist: 1.2 },
+                { id: 3, name: 'Pedro S.', rating: 4.5, moto: 'Suzuki GSX-S150', color: 'Roja', placa: 'DEF123', lat: 19.4350, lng: -99.1280, dist: 1.5 },
+            ],
+            fakeDriverLocation: { lat: 19.4310, lng: -99.1340 },
+            reviewId: null
         };
 
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
+        let locationWatchId = null;
+
+        // ═══════ TOAST ═══════
+        function showToast(msg, type) {
+            var t = document.createElement('div');
+            t.className = 'toast ' + (type || 'info');
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(function() { t.remove(); }, 3000);
+        }
+
+        // ═══════ GEOLOCATION ═══════
+        function startGeolocation() {
+            if (!navigator.geolocation) {
+                document.getElementById('passenger-location-status').textContent = '(no soportado)';
+                return;
+            }
+            locationWatchId = navigator.geolocation.watchPosition(function(pos) {
+                appState.userLat = pos.coords.latitude;
+                appState.userLng = pos.coords.longitude;
+                var el = document.getElementById('passenger-location-status');
+                if (el) el.textContent = '📍 Ubicación activa';
+                updateMapWithLocation();
+                renderNearbyDrivers();
+            }, function(err) {
+                var el = document.getElementById('passenger-location-status');
+                if (el) el.textContent = '(error: ' + err.message + ')';
+            }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
+        }
+
+        function updateMapWithLocation() {
+            if (!appState.userLat) return;
+            var el = document.getElementById('passenger-map-content');
+            if (!el) return;
+            el.innerHTML = '<iframe width="100%" height="400" frameborder="0" style="border:0;" src="https://www.openstreetmap.org/export/embed.html?bbox=' +
+                (appState.userLng - 0.015) + ',' + (appState.userLat - 0.015) + ',' +
+                (appState.userLng + 0.015) + ',' + (appState.userLat + 0.015) +
+                '&layer=transportmap&marker=' + appState.userLat + ',' + appState.userLng + '"></iframe>';
+        }
+
+        function renderNearbyDrivers() {
+            var el = document.getElementById('nearby-drivers-container');
+            if (!el || appState.currentTrip) return;
+
+            var html = '<p style="font-weight:bold;margin-bottom:8px;color:#333;">🛵 Conductores cercanos</p><div class="nearby-drivers">';
+            appState.nearbyDrivers.forEach(function(d) {
+                html += '<div class="driver-mini-card">' +
+                    '<div class="avatar">' + d.name[0] + '</div>' +
+                    '<div class="info"><h4>' + d.name + '</h4><p>⭐ ' + d.rating + ' • ' + d.moto + '</p></div>' +
+                    '<div class="dist">' + d.dist + ' km</div>' +
+                '</div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        // ═══════ LOGIN ═══════
+        function showError(msg) {
+            var el = document.getElementById('error-message');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(function() { el.style.display = 'none'; }, 5000);
         }
 
         function loginDemo(userType) {
             if (userType === 'passenger') {
-                appState.user = {
-                    id: '1',
-                    name: 'Juan Pasajero',
-                    email: 'pasajero@demo.com',
-                    userType: 'passenger',
-                    rating: 4.8
-                };
+                appState.user = { id: '1', name: 'Juan Pasajero', email: 'pasajero@demo.com', userType: 'passenger', rating: 4.8, phone: '3001234567', ratingCount: 12 };
             } else {
-                appState.user = {
-                    id: '2',
-                    name: 'Carlos Conductor',
-                    email: 'conductor@demo.com',
-                    userType: 'driver',
-                    rating: 4.9
-                };
+                appState.user = { id: '2', name: 'Carlos Conductor', email: 'conductor@demo.com', userType: 'driver', rating: 4.9, phone: '3009876543', ratingCount: 25,
+                    motoMarca: 'Yamaha', motoModelo: 'YZF-R3', motoColor: 'Azul', placa: 'XYZ789' };
             }
-            
             showPage(userType);
         }
 
+        // ═══════ PAGE NAV ═══════
         function showPage(userType) {
             document.getElementById('login-page').classList.remove('active');
             document.getElementById('passenger-page').classList.remove('active');
@@ -1005,6 +595,7 @@
                 document.getElementById('passenger-name').textContent = appState.user.name;
                 document.getElementById('passenger-rating').textContent = appState.user.rating;
                 updatePassengerUI();
+                startGeolocation();
             } else {
                 document.getElementById('driver-page').classList.add('active');
                 document.getElementById('driver-name').textContent = appState.user.name;
@@ -1015,6 +606,7 @@
         }
 
         function logout() {
+            if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
             appState.user = null;
             appState.currentTrip = null;
             appState.isDriverOnline = false;
@@ -1023,22 +615,20 @@
             document.getElementById('driver-page').classList.remove('active');
         }
 
+        // ═══════ PASSENGER ═══════
         function requestTrip() {
-            const pickup = document.getElementById('pickup-address').value;
-            const dropoff = document.getElementById('dropoff-address').value;
+            var pickup = document.getElementById('pickup-address').value;
+            var dropoff = document.getElementById('dropoff-address').value;
+            if (!pickup || !dropoff) { showError('Completa todos los campos'); return; }
 
-            if (!pickup || !dropoff) {
-                showError('Por favor completa todos los campos');
-                return;
-            }
-
-            const trip = {
+            var trip = {
                 id: Date.now().toString(),
                 pickupAddress: pickup,
                 dropoffAddress: dropoff,
-                fare: Math.random() * 50 + 5,
+                fare: parseFloat(document.getElementById('fare-amount').textContent.replace('$', '')) || (Math.random() * 30 + 8),
                 status: 'requested',
-                createdAt: new Date()
+                createdAt: new Date(),
+                distance: Math.random() * 8 + 1
             };
 
             appState.currentTrip = trip;
@@ -1046,105 +636,215 @@
             updatePassengerUI();
             document.getElementById('pickup-address').value = '';
             document.getElementById('dropoff-address').value = '';
+            document.getElementById('fare-estimate').style.display = 'none';
+
+            // Simulate driver acceptance
+            setTimeout(function() {
+                if (appState.currentTrip && appState.currentTrip.id === trip.id) {
+                    appState.currentTrip.status = 'accepted';
+                    appState.currentTrip.driverName = 'Carlos Rodriguez';
+                    appState.currentTrip.driverPhone = '3009876543';
+                    appState.currentTrip.driverRating = 4.9;
+                    appState.currentTrip.motoInfo = 'Yamaha YZF-R3 • Azul • XYZ789';
+                    appState.currentTrip.etaMin = 3;
+                    appState.fakeDriverLocation = { lat: 19.4305, lng: -99.1335 };
+                    updatePassengerUI();
+                    showToast('✅ ¡Conductor asignado!', 'success');
+
+                    setTimeout(function() {
+                        if (appState.currentTrip && appState.currentTrip.id === trip.id && appState.currentTrip.status === 'accepted') {
+                            appState.currentTrip.status = 'ongoing';
+                            updatePassengerUI();
+                            showToast('🚗 Viaje en curso', 'info');
+                        }
+                    }, 4000);
+
+                    setTimeout(function() {
+                        if (appState.currentTrip && appState.currentTrip.id === trip.id && appState.currentTrip.status === 'ongoing') {
+                            appState.currentTrip.status = 'completed';
+                            appState.completedTrips.push(Object.assign({}, appState.currentTrip));
+                            appState.earnings += appState.currentTrip.fare;
+                            var ct = appState.currentTrip;
+                            appState.currentTrip = null;
+                            updatePassengerUI();
+                            showToast('✅ Viaje completado!', 'success');
+                            setTimeout(function() { rateTripOpen(ct.id, 'passenger'); }, 500);
+                        }
+                    }, 8000);
+                }
+            }, 3000);
         }
 
         function simulateAcceptance() {
             if (appState.currentTrip) {
                 appState.currentTrip.status = 'accepted';
+                appState.currentTrip.etaMin = 3;
                 updatePassengerUI();
-                setTimeout(() => {
-                    appState.currentTrip.status = 'ongoing';
-                    updatePassengerUI();
-                }, 2000);
+                setTimeout(function() {
+                    if (appState.currentTrip) {
+                        appState.currentTrip.status = 'ongoing';
+                        updatePassengerUI();
+                    }
+                }, 3000);
             }
         }
 
-        function cancelTrip() {
+        function cancelTrip(tripId) {
+            if (!confirm('¿Cancelar este viaje?')) return;
             appState.currentTrip = null;
             updatePassengerUI();
+            showToast('Viaje cancelado', 'info');
         }
 
         function updatePassengerUI() {
+            var requestForm = document.getElementById('passenger-request-form');
+            var tripStatus = document.getElementById('passenger-trip-status');
+            var nearbyEl = document.getElementById('nearby-drivers-container');
+            var mapEl = document.getElementById('passenger-map-main');
+
             if (appState.currentTrip) {
-                document.getElementById('passenger-request-form').style.display = 'none';
-                const statusHTML = `
-                    <div class="trip-status">
-                        <h3>Estado del Viaje: <span class="status-badge ${appState.currentTrip.status}">${appState.currentTrip.status}</span></h3>
-                        
-                        <div class="trip-info">
-                            <p><strong>Origen:</strong> ${appState.currentTrip.pickupAddress}</p>
-                            <p><strong>Destino:</strong> ${appState.currentTrip.dropoffAddress}</p>
-                            <p><strong>Tarifa estimada:</strong> $${appState.currentTrip.fare.toFixed(2)}</p>
-                        </div>
+                requestForm.style.display = 'none';
+                if (nearbyEl) nearbyEl.style.display = 'none';
 
-                        <div class="trip-actions">
-                            ${appState.currentTrip.status === 'requested' ? `
-                                <p>⏳ Esperando conductor...</p>
-                                <button class="simulate-btn" onclick="simulateAcceptance()">Simular Aceptación</button>
-                            ` : appState.currentTrip.status === 'accepted' ? `
-                                <p>✅ ¡Conductor en camino!</p>
-                                <p>Tiempo estimado: 5 minutos</p>
-                            ` : `
-                                <p>🚗 ¡Viaje en progreso!</p>
-                                <p>Conductor: Carlos Rodriguez</p>
-                                <p>Vehículo: Yamaha YZF 150</p>
-                            `}
-                        </div>
-
-                        <button class="cancel-btn" onclick="cancelTrip()">Cancelar Viaje</button>
-                    </div>
-                `;
-                document.getElementById('passenger-trip-status').innerHTML = statusHTML;
-            } else {
-                document.getElementById('passenger-request-form').style.display = 'block';
-                document.getElementById('passenger-trip-status').innerHTML = '';
-            }
-        }
-
-        function showHistory(userType) {
-            if (userType === 'passenger') {
-                const rideSection = document.getElementById('passenger-ride-section');
-                const historySection = document.getElementById('passenger-history-section');
-                
-                if (rideSection.style.display === 'none') {
-                    rideSection.style.display = 'block';
-                    historySection.style.display = 'none';
-                } else {
-                    rideSection.style.display = 'none';
-                    historySection.style.display = 'block';
-                    
-                    let tripsHTML = '';
-                    if (appState.trips.length === 0) {
-                        tripsHTML = '<p style="text-align: center; color: #999;">No hay viajes registrados</p>';
-                    } else {
-                        tripsHTML = appState.trips.map(trip => `
-                            <div class="trip-card">
-                                <div class="trip-card-header">
-                                    <span class="status-badge ${trip.status}">${trip.status}</span>
-                                    <span class="fare">$${trip.fare.toFixed(2)}</span>
-                                </div>
-                                <p><strong>De:</strong> ${trip.pickupAddress}</p>
-                                <p><strong>A:</strong> ${trip.dropoffAddress}</p>
-                                <p><small>${new Date(trip.createdAt).toLocaleDateString('es-ES')}</small></p>
-                            </div>
-                        `).join('');
-                    }
-                    document.getElementById('passenger-trips-list').innerHTML = `<div class="trips-list">${tripsHTML}</div>`;
+                var t = appState.currentTrip;
+                var etaHtml = '';
+                if (t.status === 'accepted' && t.etaMin) {
+                    etaHtml = '<div class="eta-badge">🛵 Tu conductor llegará en aproximadamente <strong>' + t.etaMin + '\'</strong></div>';
                 }
+
+                var driverHtml = '';
+                if (t.status === 'accepted' || t.status === 'ongoing') {
+                    driverHtml = '<div class="trip-info"><h4 style="margin-bottom:8px;">🏍️ Información del conductor</h4>' +
+                        '<p><strong>Nombre:</strong> ' + (t.driverName || 'Carlos Rodriguez') + '</p>' +
+                        '<p><strong>⭐ Calificación:</strong> ' + (t.driverRating || 4.9) + '</p>' +
+                        '<p><strong>Moto:</strong> ' + (t.motoInfo || 'Yamaha YZF-R3 • Azul • XYZ789') + '</p></div>';
+                }
+
+                var tripMapHtml = '';
+                if (t.status === 'accepted' || t.status === 'ongoing') {
+                    var mlat = t.pickupLat || appState.userLat || 19.4326;
+                    var mlng = t.pickupLng || appState.userLng || -99.1332;
+                    tripMapHtml = '<iframe width="100%" height="400" frameborder="0" style="border:0;" src="https://www.openstreetmap.org/export/embed.html?bbox=' +
+                        (mlng - 0.015) + ',' + (mlat - 0.015) + ',' + (mlng + 0.015) + ',' + (mlat + 0.015) +
+                        '&layer=transportmap&marker=' + mlat + ',' + mlng + '"></iframe>';
+                }
+
+                tripStatus.innerHTML = '<div class="trip-status">' +
+                    '<h3>Estado del Viaje: <span class="status-badge ' + t.status + '">' + (STATUS_LABEL[t.status] || t.status) + '</span> ' + etaHtml + '</h3>' +
+                    '<div class="trip-info">' +
+                        '<p><strong>📍 Origen:</strong> ' + t.pickupAddress + '</p>' +
+                        '<p><strong>🎯 Destino:</strong> ' + t.dropoffAddress + '</p>' +
+                        '<p><strong>💰 Tarifa:</strong> <span style="color:#667eea;font-weight:700;">$' + t.fare.toFixed(2) + '</span></p>' +
+                        (t.distance ? '<p><strong>📏 Distancia:</strong> ' + t.distance.toFixed(1) + ' km</p>' : '') +
+                    '</div>' +
+                    driverHtml +
+                    (tripMapHtml ? '<div class="map-container" style="margin-top:12px;min-height:300px;">' + tripMapHtml + '</div>' : '') +
+                    '<div class="trip-actions">' +
+                        (t.status === 'requested' ? '<p>⏳ Esperando conductor...</p><button class="simulate-btn" onclick="simulateAcceptance()">Simular Aceptación</button>' :
+                         t.status === 'accepted' ? '<p>✅ ¡Conductor en camino!</p>' :
+                         t.status === 'ongoing' ? '<p>🚗 ¡Viaje en progreso!</p>' : '') +
+                    '</div>' +
+                    (t.status !== 'completed' ? '<button class="cancel-btn" onclick="cancelTrip(\'' + t.id + '\')">Cancelar Viaje</button>' : '') +
+                '</div>';
+
+                if (mapEl && tripMapHtml) {
+                    var mc = document.getElementById('passenger-map-content');
+                    if (mc) mc.innerHTML = tripMapHtml;
+                }
+            } else {
+                requestForm.style.display = 'block';
+                tripStatus.innerHTML = '';
+                if (nearbyEl) nearbyEl.style.display = 'block';
+                renderNearbyDrivers();
+                updateMapWithLocation();
             }
         }
 
+        // ═══════ PASSENGER PROFILE ═══════
+        function showPassengerProfile() {
+            hideAllPassengerSections();
+            document.getElementById('passenger-profile-section').style.display = 'block';
+
+            var u = appState.user;
+            document.getElementById('passenger-profile-name').textContent = u.name;
+            document.getElementById('passenger-profile-email').textContent = u.email;
+            document.getElementById('passenger-profile-phone').textContent = u.phone || 'No registrado';
+            document.getElementById('passenger-profile-rating').textContent = '⭐ ' + u.rating + ' (' + (u.ratingCount || 0) + ' reseñas)';
+            document.getElementById('passenger-profile-initial').textContent = u.name[0];
+
+            var reviewsHtml = appState.trips.filter(function(t) { return t.status === 'completed'; }).map(function() {
+                return '<div style="padding:8px;border-bottom:1px solid #eee;font-size:0.9em;">⭐ 5.0 — Buen servicio</div>';
+            }).join('') || '<div style="color:#999;font-size:0.9em;">Sin reseñas aún</div>';
+            document.getElementById('passenger-profile-reviews').innerHTML = reviewsHtml;
+        }
+
+        function showPassengerDashboard() {
+            hideAllPassengerSections();
+            document.getElementById('passenger-ride-section').style.display = 'block';
+        }
+
+        function hideAllPassengerSections() {
+            document.getElementById('passenger-ride-section').style.display = 'none';
+            document.getElementById('passenger-history-section').style.display = 'none';
+            document.getElementById('passenger-profile-section').style.display = 'none';
+            document.getElementById('passenger-edit-profile-section').style.display = 'none';
+        }
+
+        function editPassengerProfile() {
+            hideAllPassengerSections();
+            document.getElementById('passenger-edit-profile-section').style.display = 'block';
+            document.getElementById('edit-passenger-name').value = appState.user.name;
+            document.getElementById('edit-passenger-phone').value = appState.user.phone || '';
+        }
+
+        function savePassengerProfile() {
+            appState.user.name = document.getElementById('edit-passenger-name').value;
+            appState.user.phone = document.getElementById('edit-passenger-phone').value;
+            document.getElementById('passenger-name').textContent = appState.user.name;
+            showToast('Perfil actualizado', 'success');
+            showPassengerProfile();
+        }
+
+        // ═══════ DRIVER ═══════
         function toggleOnline() {
             appState.isDriverOnline = !appState.isDriverOnline;
             updateDriverUI();
+            if (appState.isDriverOnline) {
+                showToast('🟢 Ahora estás en línea', 'success');
+            } else {
+                showToast('⚫ Fuera de línea', 'info');
+            }
         }
 
         function acceptTrip(tripId) {
-            const trip = appState.pendingTrips.find(t => t.id === tripId);
+            var trip = appState.pendingTrips.find(function(t) { return t.id === tripId; });
             if (trip) {
                 appState.currentTrip = trip;
-                appState.pendingTrips = appState.pendingTrips.filter(t => t.id !== tripId);
+                appState.currentTrip.status = 'accepted';
+                appState.pendingTrips = appState.pendingTrips.filter(function(t) { return t.id !== tripId; });
                 updateDriverUI();
+                showToast('✅ Viaje aceptado', 'success');
+
+                setTimeout(function() {
+                    if (appState.currentTrip && appState.currentTrip.id === trip.id) {
+                        appState.currentTrip.status = 'ongoing';
+                        updateDriverUI();
+                        showToast('🚗 Viaje en curso', 'info');
+                    }
+                }, 5000);
+
+                setTimeout(function() {
+                    if (appState.currentTrip && appState.currentTrip.id === trip.id) {
+                        appState.currentTrip.status = 'completed';
+                        appState.completedTrips.push(Object.assign({}, appState.currentTrip));
+                        appState.earnings += appState.currentTrip.fare;
+                        var ct = appState.currentTrip;
+                        appState.currentTrip = null;
+                        updateDriverUI();
+                        showToast('✅ Viaje completado!', 'success');
+                        setTimeout(function() { rateTripOpen(ct.id, 'driver'); }, 500);
+                    }
+                }, 10000);
             }
         }
 
@@ -1158,10 +858,13 @@
         function completeTrip() {
             if (appState.currentTrip) {
                 appState.currentTrip.status = 'completed';
-                appState.completedTrips.push(appState.currentTrip);
+                appState.completedTrips.push(Object.assign({}, appState.currentTrip));
                 appState.earnings += appState.currentTrip.fare;
+                var t = appState.currentTrip;
                 appState.currentTrip = null;
                 updateDriverUI();
+                showToast('✅ Viaje completado!', 'success');
+                setTimeout(function() { rateTripOpen(t.id, 'driver'); }, 500);
             }
         }
 
@@ -1170,21 +873,31 @@
                 appState.pendingTrips.push(appState.currentTrip);
                 appState.currentTrip = null;
                 updateDriverUI();
+                showToast('Viaje cancelado', 'info');
             }
         }
 
         function updateDriverUI() {
-            const statusBtn = document.getElementById('online-btn');
-            const statusText = document.getElementById('driver-status');
-            
+            var statusBtn = document.getElementById('online-btn');
+            var statusText = document.getElementById('driver-status');
+
             if (appState.isDriverOnline) {
                 statusBtn.classList.add('active');
                 statusBtn.textContent = '🟢 En Línea';
                 statusText.textContent = '🟢 En Línea';
+                document.getElementById('driver-map-section').style.display = 'block';
+                var mc = document.getElementById('driver-map-content');
+                if (mc && appState.userLat) {
+                    mc.innerHTML = '<iframe width="100%" height="300" frameborder="0" style="border:0;" src="https://www.openstreetmap.org/export/embed.html?bbox=' +
+                        (appState.userLng - 0.01) + ',' + (appState.userLat - 0.01) + ',' +
+                        (appState.userLng + 0.01) + ',' + (appState.userLat + 0.01) +
+                        '&layer=transportmap&marker=' + appState.userLat + ',' + appState.userLng + '"></iframe>';
+                }
             } else {
                 statusBtn.classList.remove('active');
                 statusBtn.textContent = '⚫ Fuera de Línea';
                 statusText.textContent = '⚫ Fuera de Línea';
+                document.getElementById('driver-map-section').style.display = 'none';
             }
 
             document.getElementById('driver-completed-trips').textContent = appState.completedTrips.length;
@@ -1196,68 +909,214 @@
             document.getElementById('pending-trips-count').textContent = appState.pendingTrips.length;
             document.getElementById('completed-trips-count').textContent = appState.completedTrips.length;
 
-            let mainContent = '';
+            var mainContent = '';
             if (appState.currentTrip) {
-                mainContent = `
-                    <div class="active-trip-card">
-                        <h2>Viaje Activo</h2>
-                        <div class="trip-details">
-                            <p><strong>Origen:</strong> ${appState.currentTrip.pickupAddress}</p>
-                            <p><strong>Destino:</strong> ${appState.currentTrip.dropoffAddress}</p>
-                            <p><strong>Tarifa:</strong> $${appState.currentTrip.fare.toFixed(2)}</p>
-                            <p><strong>Estado:</strong> <span class="trip-status">${appState.currentTrip.status}</span></p>
-                        </div>
-
-                        <div class="trip-actions">
-                            ${appState.currentTrip.status === 'requested' ? `
-                                <button class="start-btn" onclick="startTrip()">🚀 Iniciar Viaje</button>
-                            ` : `
-                                <button class="complete-btn" onclick="completeTrip()">✅ Completar Viaje</button>
-                            `}
-                            <button class="cancel-btn" onclick="cancelDriverTrip()">❌ Cancelar</button>
-                        </div>
-                    </div>
-                `;
+                mainContent = '<div class="active-trip-card">' +
+                    '<h2>🟢 Viaje Activo</h2>' +
+                    '<div class="trip-details">' +
+                        '<p><strong>📍 Origen:</strong> ' + appState.currentTrip.pickupAddress + '</p>' +
+                        '<p><strong>🎯 Destino:</strong> ' + appState.currentTrip.dropoffAddress + '</p>' +
+                        '<p><strong>💰 Tarifa:</strong> $' + appState.currentTrip.fare.toFixed(2) + '</p>' +
+                        '<p><strong>Estado:</strong> <span class="status-badge ' + appState.currentTrip.status + '">' + (STATUS_LABEL[appState.currentTrip.status] || appState.currentTrip.status) + '</span></p>' +
+                    '</div>' +
+                    '<div class="trip-actions-row">' +
+                        (appState.currentTrip.status === 'accepted' ? '<button class="start-btn" onclick="startTrip()">🚀 Iniciar Viaje</button>' : '') +
+                        (appState.currentTrip.status === 'ongoing' ? '<button class="complete-btn" onclick="completeTrip()">✅ Completar Viaje</button>' : '') +
+                        '<button class="cancel-btn" onclick="cancelDriverTrip()" style="background:#ff6b6b;color:white;padding:12px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;flex:1;">❌ Cancelar</button>' +
+                    '</div>' +
+                '</div>';
             } else {
-                let tripsHTML = '';
+                var tripsHTML = '';
                 if (appState.pendingTrips.length === 0) {
-                    tripsHTML = '<p style="text-align: center; color: #999; padding: 40px;">No hay viajes disponibles en este momento</p>';
+                    tripsHTML = '<p style="text-align:center;color:#999;padding:40px;">No hay viajes disponibles</p>';
                 } else {
-                    tripsHTML = appState.pendingTrips.map(trip => `
-                        <div class="trip-item">
-                            <div class="trip-info">
-                                <p><strong>📍 Origen:</strong> ${trip.pickupAddress}</p>
-                                <p><strong>🎯 Destino:</strong> ${trip.dropoffAddress}</p>
-                                <p><strong>💰 Tarifa:</strong> $${trip.fare.toFixed(2)}</p>
-                            </div>
-                            <button class="accept-btn" onclick="acceptTrip('${trip.id}')">Aceptar</button>
-                        </div>
-                    `).join('');
+                    tripsHTML = '<div class="trips-list" style="display:flex;flex-direction:column;gap:12px;">';
+                    appState.pendingTrips.forEach(function(trip) {
+                        tripsHTML += '<div class="trip-item">' +
+                            '<div class="trip-item-info">' +
+                                '<p><strong>📍 ' + trip.pickupAddress + '</strong></p>' +
+                                '<p style="color:#666;">→ ' + trip.dropoffAddress + '</p>' +
+                                '<p><strong>💰 $' + trip.fare.toFixed(2) + '</strong></p>' +
+                            '</div>' +
+                            '<button class="accept-btn" onclick="acceptTrip(\'' + trip.id + '\')">Aceptar</button>' +
+                        '</div>';
+                    });
+                    tripsHTML += '</div>';
                 }
-                mainContent = `
-                    <div class="pending-trips-card">
-                        <h2>Viajes Disponibles (${appState.pendingTrips.length})</h2>
-                        <div class="trips-list">${tripsHTML}</div>
-                    </div>
-                `;
+                mainContent = '<div class="pending-trips-card">' +
+                    '<h2>📋 Viajes Disponibles (' + appState.pendingTrips.length + ')</h2>' +
+                    tripsHTML +
+                '</div>';
             }
 
             document.getElementById('driver-main-content').innerHTML = mainContent;
 
-            const completedTripsHTML = appState.completedTrips.length === 0 
-                ? '<p style="text-align: center; color: #999; padding: 20px;">Sin viajes completados</p>'
-                : appState.completedTrips.slice(0, 5).map(trip => `
-                    <div class="completed-trip">
-                        <p>${trip.pickupAddress}</p>
-                        <p class="destination">→ ${trip.dropoffAddress}</p>
-                        <p class="fare">$${trip.fare.toFixed(2)}</p>
-                    </div>
-                `).join('');
-
-            document.getElementById('driver-completed-trips-list').innerHTML = completedTripsHTML;
+            var completedHTML = appState.completedTrips.length === 0
+                ? '<p style="text-align:center;color:#999;padding:20px;">Sin viajes completados</p>'
+                : appState.completedTrips.slice(0, 5).map(function(trip) {
+                    return '<div class="completed-trip"><p>' + trip.pickupAddress + '</p><p class="destination">→ ' + trip.dropoffAddress + '</p><p class="fare">$' + trip.fare.toFixed(2) + ' <button class="rate-btn" onclick="rateTripOpen(\'' + trip.id + '\',\'driver\')">⭐</button></p></div>';
+                }).join('');
+            document.getElementById('driver-completed-trips-list').innerHTML = completedHTML;
         }
 
-        // Event listeners
+        // ═══════ DRIVER PROFILE ═══════
+        function showDriverProfile() {
+            document.getElementById('driver-dashboard-content').style.display = 'none';
+            document.getElementById('driver-profile-section').style.display = 'block';
+            document.getElementById('driver-edit-profile-section').style.display = 'none';
+
+            var u = appState.user;
+            document.getElementById('driver-profile-name').textContent = u.name;
+            document.getElementById('driver-profile-email').textContent = u.email;
+            document.getElementById('driver-profile-phone').textContent = u.phone || 'No registrado';
+            document.getElementById('driver-profile-rating').textContent = '⭐ ' + u.rating + ' (' + (u.ratingCount || 0) + ' reseñas)';
+            document.getElementById('driver-profile-moto').textContent = (u.motoMarca || 'Yamaha') + ' ' + (u.motoModelo || 'YZF-R3') + ' • ' + (u.motoColor || 'Azul');
+            document.getElementById('driver-profile-placa').textContent = u.placa || 'XYZ789';
+            document.getElementById('driver-profile-initial').textContent = u.name[0];
+
+            var reviewsHtml = appState.completedTrips.map(function() {
+                return '<div style="padding:8px;border-bottom:1px solid #eee;font-size:0.9em;">⭐ 5.0 — Excelente conductor</div>';
+            }).join('') || '<div style="color:#999;font-size:0.9em;">Sin reseñas aún</div>';
+            document.getElementById('driver-profile-reviews').innerHTML = reviewsHtml;
+        }
+
+        function showDriverDashboard() {
+            document.getElementById('driver-dashboard-content').style.display = 'block';
+            document.getElementById('driver-profile-section').style.display = 'none';
+            document.getElementById('driver-edit-profile-section').style.display = 'none';
+        }
+
+        function editDriverProfile() {
+            document.getElementById('driver-dashboard-content').style.display = 'none';
+            document.getElementById('driver-profile-section').style.display = 'none';
+            document.getElementById('driver-edit-profile-section').style.display = 'block';
+
+            var u = appState.user;
+            document.getElementById('edit-driver-name').value = u.name;
+            document.getElementById('edit-driver-phone').value = u.phone || '';
+            document.getElementById('edit-driver-marca').value = u.motoMarca || 'Yamaha';
+            document.getElementById('edit-driver-modelo').value = u.motoModelo || 'YZF-R3';
+            document.getElementById('edit-driver-color').value = u.motoColor || 'Azul';
+            document.getElementById('edit-driver-placa').value = u.placa || 'XYZ789';
+        }
+
+        function saveDriverProfile() {
+            var u = appState.user;
+            u.name = document.getElementById('edit-driver-name').value;
+            u.phone = document.getElementById('edit-driver-phone').value;
+            u.motoMarca = document.getElementById('edit-driver-marca').value;
+            u.motoModelo = document.getElementById('edit-driver-modelo').value;
+            u.motoColor = document.getElementById('edit-driver-color').value;
+            u.placa = document.getElementById('edit-driver-placa').value;
+            document.getElementById('driver-name').textContent = u.name;
+            showToast('Perfil actualizado', 'success');
+            showDriverProfile();
+        }
+
+        // ═══════ HISTORY ═══════
+        function showHistory(userType) {
+            if (userType === 'passenger') {
+                var rideSection = document.getElementById('passenger-ride-section');
+                var historySection = document.getElementById('passenger-history-section');
+                var profileSection = document.getElementById('passenger-profile-section');
+                var editSection = document.getElementById('passenger-edit-profile-section');
+                [rideSection, profileSection, editSection].forEach(function(el) { if (el) el.style.display = 'none'; });
+
+                if (historySection.style.display === 'none') {
+                    historySection.style.display = 'block';
+                } else {
+                    historySection.style.display = 'none';
+                    rideSection.style.display = 'block';
+                    return;
+                }
+
+                var tripsHTML = '';
+                if (appState.trips.length === 0) {
+                    tripsHTML = '<p style="text-align:center;color:#999;">No hay viajes registrados</p>';
+                } else {
+                    tripsHTML = '<div class="trips-list">' + appState.trips.map(function(trip) {
+                        return '<div class="trip-card">' +
+                            '<div class="trip-card-header">' +
+                                '<span class="status-badge ' + trip.status + '">' + (STATUS_LABEL[trip.status] || trip.status) + '</span>' +
+                                '<span class="fare">$' + trip.fare.toFixed(2) + '</span>' +
+                            '</div>' +
+                            '<p><strong>De:</strong> ' + trip.pickupAddress + '</p>' +
+                            '<p><strong>A:</strong> ' + trip.dropoffAddress + '</p>' +
+                            '<p><small>' + (trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('es-ES') : '') + '</small></p>' +
+                            (trip.status === 'completed' ? '<button class="rate-btn" onclick="rateTripOpen(\'' + trip.id + '\',\'passenger\')" style="margin-top:8px;">⭐ Calificar</button>' : '') +
+                        '</div>';
+                    }).join('') + '</div>';
+                }
+                document.getElementById('passenger-trips-list').innerHTML = tripsHTML;
+            }
+        }
+
+        // ═══════ REVIEW SYSTEM ═══════
+        function rateTripOpen(tripId, role) {
+            document.getElementById('review-trip-id').value = tripId;
+            document.getElementById('review-role').value = role;
+            document.getElementById('review-rating').value = 0;
+            document.getElementById('review-comment').value = '';
+
+            var stars = document.getElementById('star-select').children;
+            for (var i = 0; i < stars.length; i++) {
+                stars[i].textContent = '☆';
+                stars[i].classList.remove('active');
+            }
+
+            document.getElementById('review-modal').classList.remove('hidden');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var starContainer = document.getElementById('star-select');
+            if (starContainer) {
+                Array.from(starContainer.children).forEach(function(star, idx) {
+                    star.addEventListener('click', function() {
+                        document.getElementById('review-rating').value = idx + 1;
+                        Array.from(starContainer.children).forEach(function(s, j) {
+                            s.textContent = j <= idx ? '★' : '☆';
+                            if (j <= idx) s.classList.add('active'); else s.classList.remove('active');
+                        });
+                    });
+                });
+            }
+        });
+
+        function submitReview() {
+            var rating = parseInt(document.getElementById('review-rating').value);
+            if (!rating || rating < 1) { showToast('Selecciona una calificación', 'error'); return; }
+            var comment = document.getElementById('review-comment').value || '';
+            showToast('⭐ ¡Calificación enviada!', 'success');
+            closeReviewModal();
+        }
+
+        // ═══════ FARE ESTIMATE ═══════
+        var fareTimer = null;
+        document.addEventListener('DOMContentLoaded', function() {
+            var pickup = document.getElementById('pickup-address');
+            var dropoff = document.getElementById('dropoff-address');
+            if (pickup && dropoff) {
+                pickup.addEventListener('input', function() { clearTimeout(fareTimer); fareTimer = setTimeout(updateFareEstimate, 500); });
+                dropoff.addEventListener('input', function() { clearTimeout(fareTimer); fareTimer = setTimeout(updateFareEstimate, 500); });
+            }
+        });
+
+        function updateFareEstimate() {
+            var pickup = document.getElementById('pickup-address').value;
+            var dropoff = document.getElementById('dropoff-address').value;
+            if (!pickup || !dropoff) { document.getElementById('fare-estimate').style.display = 'none'; return; }
+            var base = 3.0;
+            var dist = Math.max(1, Math.abs(pickup.length - dropoff.length));
+            var fare = base + dist * 0.75;
+            document.getElementById('fare-amount').textContent = '$' + fare.toFixed(2);
+            document.getElementById('fare-estimate').style.display = 'block';
+        }
+
+        // ═══════ LOGIN FORM HANDLER ═══════
         document.getElementById('login-form').addEventListener('submit', function(e) {
             e.preventDefault();
             showError('Por favor usa los botones de demo');
