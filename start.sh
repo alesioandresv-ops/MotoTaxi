@@ -11,4 +11,4 @@ python migrate.py || echo "⚠️  migrate.py falló, continúa de todos modos"
 echo "--- migrate.py done ---"
 
 echo "--- Starting server (app.py hará _ensure_columns) ---"
-exec waitress-serve --bind=0.0.0.0:$PORT backend.app:app
+exec waitress-serve --listen=0.0.0.0:$PORT backend.app:app
