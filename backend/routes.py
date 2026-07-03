@@ -96,6 +96,10 @@ def get_driver_vehicle_info(driver):
         'tiene_casco': driver.tiene_casco,
     }
 
+@main_bp.route('/health')
+def health():
+    return jsonify({'status': 'ok'}), 200
+
 @main_bp.route('/')
 def index():
     import os
