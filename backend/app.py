@@ -96,6 +96,8 @@ def create_app():
 
     @app.before_request
     def enforce_https():
+        if request.path == '/health':
+            return
         if not app.debug and not request.is_secure and os.getenv('RAILWAY_ENVIRONMENT'):
             url = request.url.replace('http://', 'https://', 1)
             return redirect(url, 301)
