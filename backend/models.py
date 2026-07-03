@@ -14,6 +14,7 @@ class User(db.Model):
     email_verified = db.Column(db.Boolean, default=False)
     rating_avg = db.Column(db.Float, default=5.0)
     rating_count = db.Column(db.Integer, default=0)
+    accepted_guidelines = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Driver(db.Model):
@@ -23,7 +24,7 @@ class Driver(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(30), nullable=False)
-    profile_picture = db.Column(db.String(255), nullable=True)
+    profile_picture = db.Column(db.String(255), nullable=False)
     email_verified = db.Column(db.Boolean, default=False)
     is_online = db.Column(db.Boolean, default=False)
     is_ocupado = db.Column(db.Boolean, default=False)
@@ -32,6 +33,9 @@ class Driver(db.Model):
     last_location_update = db.Column(db.DateTime, nullable=True)
     rating_avg = db.Column(db.Float, default=5.0)
     rating_count = db.Column(db.Integer, default=0)
+    accepted_guidelines = db.Column(db.Boolean, default=False)
+    vehicle_type = db.Column(db.String(10), nullable=False, default='moto')
+    # Moto fields
     placa = db.Column(db.String(50), nullable=False)
     moto_marca = db.Column(db.String(120), nullable=False)
     moto_modelo = db.Column(db.String(120), nullable=False)
@@ -43,6 +47,17 @@ class Driver(db.Model):
     tipo_seguro = db.Column(db.String(120), nullable=False)
     carnet_conducir = db.Column(db.String(120), nullable=False)
     ultimo_servicio = db.Column(db.String(120), nullable=False)
+    # Auto fields
+    placa_auto = db.Column(db.String(50), nullable=True)
+    auto_marca = db.Column(db.String(120), nullable=True)
+    auto_modelo = db.Column(db.String(120), nullable=True)
+    auto_color = db.Column(db.String(80), nullable=True)
+    auto_año = db.Column(db.String(10), nullable=True)
+    tiene_patente_auto = db.Column(db.Boolean, default=False)
+    seguro_auto = db.Column(db.Boolean, default=False)
+    tipo_seguro_auto = db.Column(db.String(120), nullable=True)
+    carnet_conducir_auto = db.Column(db.String(120), nullable=True)
+    ultimo_servicio_auto = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Trip(db.Model):
@@ -50,6 +65,8 @@ class Trip(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     passenger_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     driver_id = db.Column(db.Integer, db.ForeignKey('drivers.id'), nullable=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)
+    vehicle_type = db.Column(db.String(10), nullable=False, default='moto')
     pickup_address = db.Column(db.String(255), nullable=False)
     dropoff_address = db.Column(db.String(255), nullable=False)
     pickup_lat = db.Column(db.Float, nullable=True)
@@ -67,6 +84,7 @@ class Trip(db.Model):
 
     passenger = db.relationship('User', backref='trips')
     driver = db.relationship('Driver', backref='assigned_trips')
+    company = db.relationship('Company', backref='trips')
     reviews = db.relationship('Review', backref='trip', lazy=True)
 
 class Review(db.Model):
@@ -82,11 +100,51 @@ class Review(db.Model):
     role = db.Column(db.String(10), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class DriverSession(db.Model):
-    __tablename__ = 'driver_sessions'
+class Company(db.Model):
+    __tablename__ = 'companies'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(30))
+    plan = db.Column(db.String(20), nullable=False, default='basic')
+    status = db.Column(db.String(20), nullable=False, default='trial')
+    subscription_start = db.Column(db.DateTime, nullable=True)
+    subscription_end = db.Column(db.DateTime, nullable=True)
+    payment_method = db.Column(db.String(50), nullable=True)
+    payment_reference = db.Column(db.String(255), nullable=True)
+    max_employees = db.Column(db.Integer, default=15)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    members = db.relationship('CompanyMember', backref='company', lazy=True)
+
+class CompanyMember(db.Model):
+    __tablename__ = 'company_members'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='employee')
+    invited_at = db.Column(db.DateTime, default=datetime.utcnow)
+    joined_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref='company_memberships')
+
+class DriverPaymentMethod(db.Model):
+    __tablename__ = 'driver_payment_methods'
     id = db.Column(db.Integer, primary_key=True)
     driver_id = db.Column(db.Integer, db.ForeignKey('drivers.id'), nullable=False)
-    is_online = db.Column(db.Boolean, default=False)
-    lat = db.Column(db.Float, nullable=True)
-    lng = db.Column(db.Float, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    type = db.Column(db.String(30), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+
+    driver = db.relationship('Driver', backref='payment_methods')
+
+class PassengerPaymentConfig(db.Model):
+    __tablename__ = 'passenger_payment_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    type = db.Column(db.String(30), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    is_default = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', backref='payment_configs')

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Transferencia enviada — VAN{% endblock %}
+{% block content %}
+<div class="auth-page page-transition">
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-logo">
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Solicitud recibida</p>
+    </div>
+    <div style="padding:32px 0;">
+      <div style="font-size:4rem;margin-bottom:16px;">📬</div>
+      <h2 style="margin-bottom:12px;">Recibimos tu solicitud</h2>
+      <p style="color:var(--text-muted);margin-bottom:24px;">
+        Te confirmaremos por correo electrónico cuando recibamos la transferencia.<br>
+        El proceso puede demorar hasta 48 horas hábiles.
+      </p>
+      <a href="/company/logout" class="btn btn-outline">Volver al inicio</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

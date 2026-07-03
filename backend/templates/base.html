@@ -3,19 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}MotoTaxi{% endblock %}</title>
+  <title>{% block title %}VAN{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link rel="icon" type="image/png" href="/static/logo.png">
   <link rel="stylesheet" href="/static/style.css">
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
   <div id="toast-container"></div>
+  <script>window.CSRF_TOKEN = {{ csrf_token|tojson|safe }};</script>
 
   {% block content %}{% endblock %}
 
   <script>
-  // ─── Toast Notification System ───
   function showToast(message, type) {
     var icons = { success: '✅', danger: '❌', warning: '⚠️', info: 'ℹ️' };
     var container = document.getElementById('toast-container');
@@ -29,7 +31,6 @@
     }, 4000);
   }
 
-  // Convert flash messages to toasts
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}

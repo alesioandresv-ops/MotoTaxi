@@ -1,19 +1,66 @@
 import os
+import json
 import math
-from datetime import datetime
+import secrets
+import urllib.request
+import urllib.parse
+from datetime import datetime, timedelta
+from functools import wraps
 from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify
-from .models import db, User, Driver, Trip, Review, DriverSession
+from .models import db, User, Driver, Trip, Review
 
 main_bp = Blueprint('main', __name__)
 
-TARIFA_BASE = 3.0
-TARIFA_POR_KM = 1.5
-TARIFA_POR_MIN = 0.25
-TARIFA_MINIMA = 5.0
+def csrf_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = (
+            request.form.get('csrf_token')
+            or request.headers.get('X-CSRF-Token')
+            or (request.is_json and request.get_json(silent=True) or {}).get('csrf_token')
+        )
+        if not token or token != session.get('csrf_token'):
+            return jsonify({'error': 'CSRF token inválido'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
-def calcular_tarifa_real(distance_km, duration_min):
-    fare = TARIFA_BASE + (distance_km * TARIFA_POR_KM) + (duration_min * TARIFA_POR_MIN)
-    return round(max(fare, TARIFA_MINIMA), 2)
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session and 'driver_id' not in session:
+            if request.is_json:
+                return jsonify({'error': 'No autorizado'}), 401
+            flash('Debes iniciar sesión', 'danger')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated
+
+def sanitize_input(value):
+    if value is None:
+        return None
+    import re
+    value = str(value).strip()
+    value = re.sub(r'<[^>]*>', '', value)
+    return value[:500]
+
+# Tarifas — Moto
+TARIFA_BASE_MOTO = 3.0
+TARIFA_POR_KM_MOTO = 1.5
+TARIFA_POR_MIN_MOTO = 0.25
+TARIFA_MINIMA_MOTO = 5.0
+
+# Tarifas — Auto
+TARIFA_BASE_AUTO = 4.5
+TARIFA_POR_KM_AUTO = 2.0
+TARIFA_POR_MIN_AUTO = 0.30
+TARIFA_MINIMA_AUTO = 7.0
+
+def calcular_tarifa_real(distance_km, duration_min, vehicle_type='moto'):
+    if vehicle_type == 'auto':
+        fare = TARIFA_BASE_AUTO + (distance_km * TARIFA_POR_KM_AUTO) + (duration_min * TARIFA_POR_MIN_AUTO)
+        return round(max(fare, TARIFA_MINIMA_AUTO), 2)
+    fare = TARIFA_BASE_MOTO + (distance_km * TARIFA_POR_KM_MOTO) + (duration_min * TARIFA_POR_MIN_MOTO)
+    return round(max(fare, TARIFA_MINIMA_MOTO), 2)
 
 def calcular_distancia(lat1, lng1, lat2, lng2):
     R = 6371
@@ -23,8 +70,43 @@ def calcular_distancia(lat1, lng1, lat2, lng2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return round(R * c, 2)
 
+def vehicle_emoji(vtype):
+    return '🚗' if vtype == 'auto' else '🛵'
+
+def vehicle_label(vtype):
+    return 'Auto' if vtype == 'auto' else 'Moto'
+
+def get_driver_vehicle_info(driver):
+    if driver.vehicle_type == 'auto':
+        return {
+            'vehicle_type': 'auto',
+            'marca': driver.auto_marca or '',
+            'modelo': driver.auto_modelo or '',
+            'color': driver.auto_color or '',
+            'placa': driver.placa_auto or '',
+            'año': driver.auto_año or '',
+        }
+    return {
+        'vehicle_type': 'moto',
+        'marca': driver.moto_marca or '',
+        'modelo': driver.moto_modelo or '',
+        'color': driver.moto_color or '',
+        'placa': driver.placa or '',
+        'cilindrada': driver.moto_cilindrada or '',
+        'tiene_casco': driver.tiene_casco,
+    }
+
 @main_bp.route('/')
 def index():
+    import os
+    demo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'demo', 'index.html')
+    if os.path.exists(demo_path):
+        with open(demo_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return render_template('index.html')
+
+@main_bp.route('/app')
+def app_index():
     return render_template('index.html')
 
 @main_bp.route('/dashboard')
@@ -36,7 +118,12 @@ def dashboard():
             Trip.passenger_id == passenger.id,
             Trip.status.in_(['requested', 'accepted', 'ongoing'])
         ).order_by(Trip.requested_at.desc()).first()
-        history_trips = Trip.query.filter_by(passenger_id=passenger.id).order_by(Trip.requested_at.desc()).limit(10).all()
+        cutoff = datetime.utcnow() - timedelta(days=4)
+        history_trips = Trip.query.filter(
+            Trip.passenger_id == passenger.id,
+            Trip.status != 'cancelled',
+            Trip.completed_at >= cutoff
+        ).order_by(Trip.requested_at.desc()).limit(10).all()
         driver_info = current_trip.driver if current_trip and current_trip.driver else None
 
         nearby_drivers = Driver.query.filter(
@@ -55,6 +142,8 @@ def dashboard():
             driver_info=driver_info,
             driver=passenger,
             nearby_drivers=nearby_drivers,
+            vehicle_emoji=vehicle_emoji,
+            vehicle_label=vehicle_label,
             MAPBOX_TOKEN=os.getenv('MAPBOX_TOKEN', ''),
             GOOGLE_MAPS_KEY=os.getenv('GOOGLE_MAPS_KEY', '')
         )
@@ -67,7 +156,12 @@ def dashboard():
             Trip.driver_id == driver.id,
             Trip.status.in_(['accepted', 'ongoing'])
         ).order_by(Trip.requested_at.desc()).first()
-        completed_trips = Trip.query.filter_by(driver_id=driver.id, status='completed').order_by(Trip.requested_at.desc()).limit(10).all()
+        cutoff = datetime.utcnow() - timedelta(days=4)
+        completed_trips = Trip.query.filter(
+            Trip.driver_id == driver.id,
+            Trip.status == 'completed',
+            Trip.completed_at >= cutoff
+        ).order_by(Trip.requested_at.desc()).limit(10).all()
 
         return render_template(
             'dashboard.html',
@@ -77,6 +171,8 @@ def dashboard():
             available_trips=available_trips,
             active_trip=active_trip,
             completed_trips=completed_trips,
+            vehicle_emoji=vehicle_emoji,
+            vehicle_label=vehicle_label,
             MAPBOX_TOKEN=os.getenv('MAPBOX_TOKEN', ''),
             GOOGLE_MAPS_KEY=os.getenv('GOOGLE_MAPS_KEY', '')
         )
@@ -84,29 +180,44 @@ def dashboard():
     return redirect(url_for('auth.login'))
 
 @main_bp.route('/passenger/request', methods=['POST'])
+@csrf_required
+@login_required
 def passenger_request():
     if 'user_id' not in session:
         flash('Debes iniciar sesión como pasajero', 'danger')
         return redirect(url_for('auth.login'))
 
-    pickup = request.form.get('pickup_address')
-    dropoff = request.form.get('dropoff_address')
+    pickup = sanitize_input(request.form.get('pickup_address'))
+    dropoff = sanitize_input(request.form.get('dropoff_address'))
     pickup_lat = request.form.get('pickup_lat', type=float)
     pickup_lng = request.form.get('pickup_lng', type=float)
     dropoff_lat = request.form.get('dropoff_lat', type=float)
     dropoff_lng = request.form.get('dropoff_lng', type=float)
     distance_km = request.form.get('distance_km', type=float)
+    vehicle_type = request.form.get('vehicle_type', 'moto')
+
+    if vehicle_type not in ('moto', 'auto'):
+        vehicle_type = 'moto'
 
     if not pickup or not dropoff:
         flash('Completa el origen y destino', 'danger')
         return redirect(url_for('main.dashboard'))
 
+    active = Trip.query.filter(
+        Trip.passenger_id == session['user_id'],
+        Trip.status.in_(['requested', 'accepted', 'ongoing'])
+    ).first()
+    if active:
+        flash('Ya tienes un viaje en curso', 'warning')
+        return redirect(url_for('main.dashboard'))
+
     if distance_km and distance_km > 0:
-        fare = calcular_tarifa_real(distance_km, 0)
+        fare = calcular_tarifa_real(distance_km, 0, vehicle_type)
     else:
-        base = 5.0
+        base = TARIFA_MINIMA_AUTO if vehicle_type == 'auto' else TARIFA_MINIMA_MOTO
         dist = max(1, abs(len(pickup) - len(dropoff)))
-        fare = round(base + dist * 0.75, 2)
+        por_km = TARIFA_POR_KM_AUTO if vehicle_type == 'auto' else TARIFA_POR_KM_MOTO
+        fare = round(base + dist * por_km, 2)
 
     trip = Trip(
         passenger_id=session['user_id'],
@@ -118,15 +229,19 @@ def passenger_request():
         dropoff_lng=dropoff_lng,
         distance_km=distance_km,
         fare=fare,
+        vehicle_type=vehicle_type,
         status='requested'
     )
     db.session.add(trip)
     db.session.commit()
 
-    flash(f'Viaje solicitado (${fare:.2f}). Esperando conductor.', 'success')
+    emoji = vehicle_emoji(vehicle_type)
+    flash(f'{emoji} Viaje solicitado (${fare:.2f}). Esperando conductor.', 'success')
     return redirect(url_for('main.dashboard'))
 
-@main_bp.route('/driver/accept/<int:trip_id>')
+@main_bp.route('/driver/accept/<int:trip_id>', methods=['POST'])
+@login_required
+@csrf_required
 def driver_accept(trip_id):
     if 'driver_id' not in session:
         flash('Debes iniciar sesión como conductor', 'danger')
@@ -147,12 +262,14 @@ def driver_accept(trip_id):
     return redirect(url_for('main.dashboard'))
 
 @main_bp.route('/api/driver/respond/<int:trip_id>', methods=['POST'])
+@login_required
+@csrf_required
 def api_driver_respond(trip_id):
     if 'driver_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
+        return jsonify({'error': 'Debes ser conductor'}), 401
 
-    data = request.get_json()
-    action = data.get('action') if data else None
+    data = request.get_json(silent=True) or {}
+    action = data.get('action')
 
     trip = Trip.query.get(trip_id)
     if not trip or trip.status != 'requested':
@@ -171,7 +288,9 @@ def api_driver_respond(trip_id):
 
     return jsonify({'error': 'Acción inválida'}), 400
 
-@main_bp.route('/driver/start/<int:trip_id>')
+@main_bp.route('/driver/start/<int:trip_id>', methods=['POST'])
+@login_required
+@csrf_required
 def driver_start(trip_id):
     if 'driver_id' not in session:
         flash('Debes iniciar sesión como conductor', 'danger')
@@ -188,7 +307,9 @@ def driver_start(trip_id):
     flash('Viaje iniciado.', 'success')
     return redirect(url_for('main.dashboard'))
 
-@main_bp.route('/driver/complete/<int:trip_id>')
+@main_bp.route('/driver/complete/<int:trip_id>', methods=['POST'])
+@login_required
+@csrf_required
 def driver_complete(trip_id):
     if 'driver_id' not in session:
         flash('Debes iniciar sesión como conductor', 'danger')
@@ -209,12 +330,11 @@ def driver_complete(trip_id):
     return redirect(url_for('main.dashboard'))
 
 @main_bp.route('/api/trip/<int:trip_id>/cancel', methods=['POST'])
+@login_required
+@csrf_required
 def api_cancel_trip(trip_id):
-    if 'user_id' not in session and 'driver_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-
-    data = request.get_json()
-    reason = data.get('reason', '') if data else ''
+    data = request.get_json(silent=True) or {}
+    reason = sanitize_input(data.get('reason', ''))
 
     trip = Trip.query.get(trip_id)
     if not trip:
@@ -244,9 +364,15 @@ def api_cancel_trip(trip_id):
     return jsonify({'error': 'No autorizado'}), 401
 
 @main_bp.route('/api/location/update', methods=['POST'])
+@login_required
+@csrf_required
 def api_location_update():
     if 'driver_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
+        return jsonify({'error': 'Debes ser conductor'}), 401
+
+    driver = Driver.query.get(session['driver_id'])
+    if not driver or not driver.is_online:
+        return jsonify({'error': 'Conductor no está en línea'}), 403
 
     data = request.get_json()
     lat = data.get('lat')
@@ -255,7 +381,6 @@ def api_location_update():
     if lat is None or lng is None:
         return jsonify({'error': 'lat y lng requeridos'}), 400
 
-    driver = Driver.query.get(session['driver_id'])
     driver.lat = lat
     driver.lng = lng
     driver.last_location_update = datetime.utcnow()
@@ -264,11 +389,13 @@ def api_location_update():
     return jsonify({'success': True})
 
 @main_bp.route('/api/driver/toggle_online', methods=['POST'])
+@login_required
+@csrf_required
 def api_toggle_online():
     if 'driver_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
+        return jsonify({'error': 'Debes ser conductor'}), 401
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     is_online = data.get('is_online', False)
 
     driver = Driver.query.get(session['driver_id'])
@@ -280,34 +407,39 @@ def api_toggle_online():
     return jsonify({'success': True, 'is_online': driver.is_online})
 
 @main_bp.route('/api/drivers/nearby')
+@login_required
 def api_drivers_nearby():
     lat = request.args.get('lat', type=float)
     lng = request.args.get('lng', type=float)
     radius_km = request.args.get('radius', 10, type=float)
+    vehicle_type = request.args.get('vehicle_type', '')
 
     if lat is None or lng is None:
         return jsonify({'error': 'lat y lng requeridos'}), 400
 
-    drivers = Driver.query.filter(
+    query = Driver.query.filter(
         Driver.is_online == True,
         Driver.is_ocupado == False,
         Driver.lat.isnot(None),
         Driver.lng.isnot(None)
-    ).all()
+    )
+    if vehicle_type in ('moto', 'auto'):
+        query = query.filter(Driver.vehicle_type == vehicle_type)
+
+    drivers = query.all()
 
     nearby = []
     for d in drivers:
         dist = calcular_distancia(lat, lng, d.lat, d.lng)
         if dist <= radius_km:
+            vinfo = get_driver_vehicle_info(d)
             nearby.append({
                 'id': d.id,
                 'name': d.name,
                 'rating_avg': d.rating_avg,
                 'rating_count': d.rating_count,
-                'moto_marca': d.moto_marca,
-                'moto_modelo': d.moto_modelo,
-                'moto_color': d.moto_color,
-                'placa': d.placa,
+                'vehicle_type': d.vehicle_type,
+                'vehicle_info': vinfo,
                 'lat': d.lat,
                 'lng': d.lng,
                 'distance_km': dist,
@@ -323,12 +455,21 @@ def api_drivers_nearby():
 
 @main_bp.route('/api/trip/<int:trip_id>/status')
 def api_trip_status(trip_id):
+    if 'user_id' not in session and 'driver_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
     trip = Trip.query.get(trip_id)
     if not trip:
         return jsonify({'error': 'Viaje no encontrado'}), 404
 
+    if 'user_id' in session and trip.passenger_id != session['user_id']:
+        return jsonify({'error': 'No autorizado'}), 401
+    if 'driver_id' in session and trip.driver_id != session['driver_id']:
+        return jsonify({'error': 'No autorizado'}), 401
+
     driver_info = None
     if trip.driver:
+        vinfo = get_driver_vehicle_info(trip.driver)
         driver_info = {
             'id': trip.driver.id,
             'name': trip.driver.name,
@@ -336,14 +477,8 @@ def api_trip_status(trip_id):
             'profile_picture': trip.driver.profile_picture,
             'rating_avg': trip.driver.rating_avg,
             'rating_count': trip.driver.rating_count,
-            'placa': trip.driver.placa,
-            'moto_marca': trip.driver.moto_marca,
-            'moto_modelo': trip.driver.moto_modelo,
-            'moto_color': trip.driver.moto_color,
-            'moto_cilindrada': trip.driver.moto_cilindrada,
-            'tiene_casco': trip.driver.tiene_casco,
-            'seguro_moto': trip.driver.seguro_moto,
-            'carnet_conducir': trip.driver.carnet_conducir,
+            'vehicle_type': trip.driver.vehicle_type,
+            'vehicle_info': vinfo,
             'lat': trip.driver.lat,
             'lng': trip.driver.lng,
         }
@@ -351,6 +486,7 @@ def api_trip_status(trip_id):
     return jsonify({
         'id': trip.id,
         'status': trip.status,
+        'vehicle_type': trip.vehicle_type,
         'pickup_address': trip.pickup_address,
         'dropoff_address': trip.dropoff_address,
         'pickup_lat': trip.pickup_lat,
@@ -364,9 +500,17 @@ def api_trip_status(trip_id):
 
 @main_bp.route('/api/trip/<int:trip_id>/eta')
 def api_trip_eta(trip_id):
+    if 'user_id' not in session and 'driver_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
     trip = Trip.query.get(trip_id)
     if not trip:
         return jsonify({'error': 'Viaje no encontrado'}), 404
+
+    if 'user_id' in session and trip.passenger_id != session['user_id']:
+        return jsonify({'error': 'No autorizado'}), 401
+    if 'driver_id' in session and trip.driver_id != session['driver_id']:
+        return jsonify({'error': 'No autorizado'}), 401
 
     if not trip.driver or not trip.driver.lat or not trip.driver.lng:
         return jsonify({'eta_min': None, 'distance_km': None})
@@ -399,6 +543,7 @@ def api_trips_available():
                 'pickup_lat': t.pickup_lat,
                 'pickup_lng': t.pickup_lng,
                 'fare': t.fare,
+                'vehicle_type': t.vehicle_type,
                 'distance_km': dist,
                 'requested_at': t.requested_at.isoformat() if t.requested_at else None,
             })
@@ -419,22 +564,22 @@ def api_trips_available():
             'pickup_address': t.pickup_address,
             'dropoff_address': t.dropoff_address,
             'fare': t.fare,
+            'vehicle_type': t.vehicle_type,
             'requested_at': t.requested_at.isoformat() if t.requested_at else None,
         } for t in trips],
     })
 
 @main_bp.route('/api/trip/<int:trip_id>/rate', methods=['POST'])
+@login_required
+@csrf_required
 def api_rate_trip(trip_id):
-    if 'user_id' not in session and 'driver_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-
     trip = Trip.query.get(trip_id)
     if not trip or trip.status != 'completed':
         return jsonify({'error': 'Viaje no encontrado o no completado'}), 400
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     rating = data.get('rating')
-    comment = data.get('comment', '')
+    comment = sanitize_input(data.get('comment', ''))
 
     if not rating or not (1 <= int(rating) <= 5):
         return jsonify({'error': 'Calificación debe ser entre 1 y 5'}), 400
@@ -523,9 +668,17 @@ def api_user_reviews(user_id):
 
 @main_bp.route('/api/trip/<int:trip_id>/driver-eta')
 def api_driver_eta(trip_id):
+    if 'user_id' not in session and 'driver_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
     trip = Trip.query.get(trip_id)
     if not trip or not trip.driver:
         return jsonify({'eta_min': None})
+
+    if 'user_id' in session and trip.passenger_id != session['user_id']:
+        return jsonify({'error': 'No autorizado'}), 401
+    if 'driver_id' in session and trip.driver_id != session['driver_id']:
+        return jsonify({'error': 'No autorizado'}), 401
 
     driver = trip.driver
     if not driver.lat or not driver.lng:
@@ -535,3 +688,157 @@ def api_driver_eta(trip_id):
     avg_speed_kmh = 30
     eta_min = max(1, int((dist / avg_speed_kmh) * 60))
     return jsonify({'eta_min': eta_min, 'distance_km': dist, 'driver_lat': driver.lat, 'driver_lng': driver.lng})
+
+@main_bp.route('/api/geocode')
+def api_geocode():
+    q = request.args.get('q')
+    if not q:
+        return jsonify({'error': 'q requerido'}), 400
+    try:
+        url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
+            'q': q, 'format': 'json', 'limit': 1, 'addressdetails': 0
+        })
+        req = urllib.request.Request(url, headers={'User-Agent': 'VAN/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if data:
+                return jsonify({'lat': float(data[0]['lat']), 'lng': float(data[0]['lon']), 'display_name': data[0].get('display_name', '')})
+        return jsonify({'error': 'No encontrado'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ─── Driver Payment Methods API ───
+@main_bp.route('/api/driver/payment-methods', methods=['GET', 'POST'])
+@login_required
+@csrf_required
+def api_driver_payment_methods():
+    if 'driver_id' not in session:
+        return jsonify({'error': 'Debes ser conductor'}), 401
+
+    if request.method == 'GET':
+        methods = DriverPaymentMethod.query.filter_by(driver_id=session['driver_id']).all()
+        return jsonify({
+            'methods': [{
+                'id': m.id, 'type': m.type,
+                'details': json.loads(m.details) if m.details else {},
+                'is_active': m.is_active
+            } for m in methods]
+        })
+
+    data = request.get_json(silent=True) or {}
+    pm_type = data.get('type')
+    details = data.get('details', {})
+
+    if pm_type not in ('card', 'mercadopago', 'transfer'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    method = DriverPaymentMethod(
+        driver_id=session['driver_id'],
+        type=pm_type,
+        details=json.dumps(details, ensure_ascii=False),
+        is_active=True
+    )
+    db.session.add(method)
+    db.session.commit()
+    return jsonify({'success': True, 'id': method.id})
+
+@main_bp.route('/api/driver/payment-methods/<int:method_id>', methods=['DELETE'])
+@login_required
+@csrf_required
+def api_delete_payment_method(method_id):
+    if 'driver_id' not in session:
+        return jsonify({'error': 'Debes ser conductor'}), 401
+    method = DriverPaymentMethod.query.get(method_id)
+    if not method or method.driver_id != session['driver_id']:
+        return jsonify({'error': 'No encontrado'}), 404
+    db.session.delete(method)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@main_bp.route('/api/driver/<int:driver_id>/payment-methods')
+def api_driver_public_payment_methods(driver_id):
+    driver = Driver.query.get(driver_id)
+    if not driver:
+        return jsonify({'error': 'Conductor no encontrado'}), 404
+    methods = DriverPaymentMethod.query.filter_by(driver_id=driver_id, is_active=True).all()
+    return jsonify({
+        'methods': [{'type': m.type, 'details': json.loads(m.details) if m.details else {}} for m in methods]
+    })
+
+# ─── Passenger Payment Configs API ───
+@main_bp.route('/api/user/payment-methods', methods=['GET', 'POST'])
+@login_required
+@csrf_required
+def api_user_payment_methods():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Debes ser pasajero'}), 401
+
+    if request.method == 'GET':
+        configs = PassengerPaymentConfig.query.filter_by(user_id=session['user_id']).all()
+        return jsonify({
+            'methods': [{
+                'id': c.id, 'type': c.type,
+                'details': json.loads(c.details) if c.details else {},
+                'is_default': c.is_default
+            } for c in configs]
+        })
+
+    data = request.get_json(silent=True) or {}
+    pm_type = data.get('type')
+    details = data.get('details', {})
+
+    if pm_type not in ('card', 'mercadopago', 'transfer'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    config = PassengerPaymentConfig(
+        user_id=session['user_id'],
+        type=pm_type,
+        details=json.dumps(details, ensure_ascii=False),
+        is_default=not PassengerPaymentConfig.query.filter_by(user_id=session['user_id']).first()
+    )
+    db.session.add(config)
+    db.session.commit()
+    return jsonify({'success': True, 'id': config.id})
+
+@main_bp.route('/api/user/payment-methods/<int:config_id>', methods=['DELETE'])
+@login_required
+@csrf_required
+def api_delete_user_payment_method(config_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Debes ser pasajero'}), 401
+    config = PassengerPaymentConfig.query.get(config_id)
+    if not config or config.user_id != session['user_id']:
+        return jsonify({'error': 'No encontrado'}), 404
+    db.session.delete(config)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# ─── Guidelines API ───
+@main_bp.route('/api/accept-guidelines', methods=['POST'])
+@login_required
+@csrf_required
+def api_accept_guidelines():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user.accepted_guidelines = True
+            db.session.commit()
+            return jsonify({'success': True})
+    if 'driver_id' in session:
+        driver = Driver.query.get(session['driver_id'])
+        if driver:
+            driver.accepted_guidelines = True
+            db.session.commit()
+            return jsonify({'success': True})
+    return jsonify({'error': 'No autorizado'}), 401
+
+@main_bp.route('/api/guidelines-status')
+@login_required
+def api_guidelines_status():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        return jsonify({'accepted': user.accepted_guidelines if user else False})
+    if 'driver_id' in session:
+        driver = Driver.query.get(session['driver_id'])
+        return jsonify({'accepted': driver.accepted_guidelines if driver else False})
+    return jsonify({'accepted': False})

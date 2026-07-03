@@ -1,25 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Verificar correo — MotoTaxi{% endblock %}
+{% block title %}Verificar correo — VAN{% endblock %}
 {% block content %}
-<main class="auth-page">
-  <div class="auth-card" style="max-width:420px;">
+<div class="auth-page page-transition">
+  <div class="auth-card" style="text-align:center;">
     <div class="auth-logo">
-      <span class="icon">✉️</span>
-      <h1>Verifica tu correo</h1>
-      <p>Hemos enviado un código a <strong>{{ email }}</strong></p>
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Verifica tu correo electrónico</p>
     </div>
 
+    <p style="color:var(--text-muted);margin-bottom:24px;">
+      Hemos enviado un código de verificación a <strong>{{ email }}</strong>
+    </p>
+
     <form class="form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="input-group">
         <label>Código de verificación</label>
-        <input type="text" name="code" required placeholder="Ingresa el código de 6 dígitos" maxlength="6" style="text-align:center;font-size:1.5rem;letter-spacing:8px;font-weight:700;">
+        <input type="text" name="code" required placeholder="123456" style="text-align:center;font-size:1.5rem;letter-spacing:8px;font-weight:700;" maxlength="6" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-primary btn-lg btn-block">Verificar</button>
     </form>
-
-    <div class="links-row">
-      <p class="muted">¿No recibiste el código? <a href="{{ url_for('auth.login') }}">Reintentar registro</a></p>
-    </div>
   </div>
-</main>
+</div>
 {% endblock %}

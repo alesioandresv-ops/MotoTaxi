@@ -1,18 +1,26 @@
 {% extends "base.html" %}
-{% block title %}MotoTaxi — Tu plataforma de mototaxi{% endblock %}
+{% block title %}VAN — Tu Aplicación de Transporte{% endblock %}
 {% block content %}
-<main class="auth-page">
-  <div class="auth-card" style="text-align:center;">
-    <div class="auth-logo">
-      <span class="icon">🏍️</span>
-      <h1>MotoTaxi</h1>
-      <p>Tu plataforma confiable de mototaxi</p>
-    </div>
-    <div style="display:grid;gap:14px;margin-top:32px;">
-      <a href="/login" class="btn btn-primary btn-lg btn-block">Iniciar sesión</a>
-      <a href="/register" class="btn btn-outline btn-block">Registrarse como pasajero</a>
-      <a href="/driver/register" class="btn btn-outline btn-block">Registrarse como conductor</a>
+<div class="page active page-transition">
+  <div class="container" style="padding-top:40px;">
+    <div class="auth-card" style="text-align:center;">
+      <div class="auth-logo">
+        <img src="/static/logo.png" alt="VAN" style="height:64px;margin-bottom:12px;">
+        <h1>VAN</h1>
+        <p>Tu aplicación de transporte confiable</p>
+      </div>
+      <div style="display:grid;gap:14px;margin-top:24px;">
+        <a href="/login" class="btn btn-primary btn-lg btn-block">Iniciar sesión</a>
+        <a href="/register" class="btn btn-outline btn-block">Registrarse como pasajero</a>
+        <a href="/driver/register" class="btn btn-outline btn-block">Registrarse como conductor</a>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:24px 0;">
+      <div style="text-align:center;">
+        <a href="/company" class="btn btn-outline btn-block" style="justify-content:center;">
+          🏢 VAN para Empresas
+        </a>
+      </div>
     </div>
   </div>
-</main>
+</div>
 {% endblock %}

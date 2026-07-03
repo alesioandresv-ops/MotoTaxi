@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Empresa — Iniciar sesión — VAN{% endblock %}
+{% block content %}
+<div class="auth-page page-transition">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Inicia sesión como empresa</p>
+    </div>
+
+    <form class="form" method="post" action="/company/login">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="input-group">
+        <label>Correo electrónico</label>
+        <input type="email" name="email" required placeholder="empresa@correo.com">
+      </div>
+      <div class="input-group">
+        <label>Contraseña</label>
+        <input type="password" name="password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">Iniciar sesión</button>
+    </form>
+
+    <div class="links-row">
+      <a href="/company/register">¿No tienes cuenta? Registra tu empresa</a>
+      <a href="/company">← Volver</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

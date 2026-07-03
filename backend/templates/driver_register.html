@@ -1,121 +1,289 @@
 {% extends "base.html" %}
-{% block title %}Registro conductor — MotoTaxi{% endblock %}
+{% block title %}Registro Conductor — VAN{% endblock %}
 {% block content %}
-<main class="auth-page">
+<div class="auth-page page-transition">
   <div class="auth-card wide">
     <div class="auth-logo">
-      <span class="icon">🏍️</span>
-      <h1>MotoTaxi</h1>
-      <p>Registrarse como conductor</p>
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Regístrate como conductor</p>
     </div>
 
-    <form class="form" method="post" action="/driver/register">
-      <h3 class="form-section-title">Información personal</h3>
+    <form class="form" method="post" action="/driver/register" enctype="multipart/form-data" id="driver-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
+      <h2 class="form-section-title">📸 Foto de perfil (obligatoria)</h2>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);">
+        <div id="photo-preview" style="width:120px;height:120px;border-radius:50%;overflow:hidden;border:3px solid var(--border);display:flex;align-items:center;justify-content:center;background:var(--surface);">
+          <span style="color:var(--text-muted);font-size:2rem;">📷</span>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="openCamera()">📸 Tomar foto</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('profile_picture').click()">📁 Subir archivo</button>
+        </div>
+        <input type="file" id="profile_picture" name="profile_picture" accept="image/*" style="display:none;" onchange="previewFile(event)">
+        <input type="hidden" name="camera_data" id="camera_data">
+        <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;">La foto es obligatoria para registrarse como conductor</p>
+      </div>
+
+      <h2 class="form-section-title">👤 Datos personales</h2>
       <div class="input-row">
         <div class="input-group">
           <label>Nombre completo</label>
-          <input type="text" name="name" required placeholder="Ej: Carlos López">
-        </div>
-        <div class="input-group">
-          <label>Correo electrónico</label>
-          <input type="email" name="email" required placeholder="conductor@correo.com">
-        </div>
-      </div>
-
-      <div class="input-row">
-        <div class="input-group">
-          <label>Contraseña</label>
-          <input type="password" name="password" required placeholder="••••••••">
+          <input type="text" name="name" required placeholder="Tu nombre">
         </div>
         <div class="input-group">
           <label>Teléfono</label>
-          <input type="tel" name="phone" required placeholder="300 987 6543">
+          <input type="tel" name="phone" required placeholder="+54 11 1234 5678">
         </div>
       </div>
-
-      <h3 class="form-section-title">Información de la moto</h3>
-
       <div class="input-row">
         <div class="input-group">
-          <label>Placa</label>
-          <input type="text" name="placa" required placeholder="ABC123">
+          <label>Correo electrónico</label>
+          <input type="email" name="email" required placeholder="tu@correo.com">
         </div>
         <div class="input-group">
-          <label>Marca</label>
-          <input type="text" name="moto_marca" required placeholder="Ej: Yamaha">
+          <label>Contraseña</label>
+          <input type="password" name="password" required placeholder="••••••••" minlength="6">
         </div>
       </div>
 
-      <div class="input-row">
-        <div class="input-group">
-          <label>Modelo</label>
-          <input type="text" name="moto_modelo" required placeholder="Ej: YZF-R3">
+      <h2 class="form-section-title">🚗 Tipo de vehículo</h2>
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <label class="vehicle-type-option" style="flex:1;padding:16px;border:2px solid var(--border);border-radius:var(--radius-sm);text-align:center;cursor:pointer;transition:all var(--transition);" onclick="selectVehicle('moto')" id="vtype-moto">
+          <input type="radio" name="vehicle_type" value="moto" checked style="display:none;">
+          <div style="font-size:2rem;margin-bottom:8px;">🛵</div>
+          <div style="font-weight:700;">Moto</div>
+        </label>
+        <label class="vehicle-type-option" style="flex:1;padding:16px;border:2px solid var(--border);border-radius:var(--radius-sm);text-align:center;cursor:pointer;transition:all var(--transition);" onclick="selectVehicle('auto')" id="vtype-auto">
+          <input type="radio" name="vehicle_type" value="auto" style="display:none;">
+          <div style="font-size:2rem;margin-bottom:8px;">🚗</div>
+          <div style="font-weight:700;">Auto</div>
+        </label>
+      </div>
+
+      <!-- Moto fields -->
+      <div id="moto-fields">
+        <h2 class="form-section-title">🛵 Datos de la Moto</h2>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Placa</label>
+            <input type="text" name="placa" placeholder="ABC123">
+          </div>
+          <div class="input-group">
+            <label>Marca</label>
+            <input type="text" name="moto_marca" placeholder="Yamaha">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Modelo</label>
+            <input type="text" name="moto_modelo" placeholder="YZF-R3">
+          </div>
+          <div class="input-group">
+            <label>Color</label>
+            <input type="text" name="moto_color" placeholder="Azul">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Cilindrada</label>
+            <input type="text" name="moto_cilindrada" placeholder="300cc">
+          </div>
+          <div class="input-group">
+            <label>¿Tiene patente?</label>
+            <select name="tiene_patente">
+              <option value="yes">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>¿Tiene casco?</label>
+            <select name="tiene_casco">
+              <option value="yes">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>¿Tiene seguro?</label>
+            <select name="seguro_moto">
+              <option value="yes">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Tipo de seguro</label>
+            <input type="text" name="tipo_seguro" placeholder="Responsabilidad civil / Todo riesgo">
+          </div>
+          <div class="input-group">
+            <label>Carnet de conducir</label>
+            <input type="text" name="carnet_conducir" placeholder="A.1.2">
+          </div>
         </div>
         <div class="input-group">
-          <label>Color</label>
-          <input type="text" name="moto_color" required placeholder="Ej: Rojo">
+          <label>Último servicio</label>
+          <input type="text" name="ultimo_servicio" placeholder="Ej: 15/01/2026">
         </div>
       </div>
 
-      <div class="input-row">
-        <div class="input-group">
-          <label>Cilindrada</label>
-          <input type="text" name="moto_cilindrada" required placeholder="Ej: 250cc">
+      <!-- Auto fields -->
+      <div id="auto-fields" style="display:none;">
+        <h2 class="form-section-title">🚗 Datos del Auto</h2>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Placa</label>
+            <input type="text" name="placa_auto" placeholder="ABC123">
+          </div>
+          <div class="input-group">
+            <label>Marca</label>
+            <input type="text" name="auto_marca" placeholder="Toyota">
+          </div>
         </div>
-        <div class="input-group">
-          <label>¿Tienes patente?</label>
-          <select name="tiene_patente" required>
-            <option value="">Selecciona</option>
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Modelo</label>
+            <input type="text" name="auto_modelo" placeholder="Corolla">
+          </div>
+          <div class="input-group">
+            <label>Color</label>
+            <input type="text" name="auto_color" placeholder="Blanco">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Año</label>
+            <input type="text" name="auto_año" placeholder="2020">
+          </div>
+          <div class="input-group">
+            <label>¿Tiene patente?</label>
+            <select name="tiene_patente_auto">
+              <option value="yes">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>¿Tiene seguro?</label>
+            <select name="seguro_auto">
+              <option value="yes">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Tipo de seguro</label>
+            <input type="text" name="tipo_seguro_auto" placeholder="Responsabilidad civil / Todo riesgo">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Carnet de conducir</label>
+            <input type="text" name="carnet_conducir_auto" placeholder="B.1">
+          </div>
+          <div class="input-group">
+            <label>Último servicio</label>
+            <input type="text" name="ultimo_servicio_auto" placeholder="Ej: 15/01/2026">
+          </div>
         </div>
       </div>
 
-      <h3 class="form-section-title">Documentos y requisitos</h3>
-
-      <div class="input-row">
-        <div class="input-group">
-          <label>¿Tienes casco?</label>
-          <select name="tiene_casco" required>
-            <option value="">Selecciona</option>
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>¿Tienes seguro?</label>
-          <select name="seguro_moto" required>
-            <option value="">Selecciona</option>
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="input-row">
-        <div class="input-group">
-          <label>Tipo de seguro</label>
-          <input type="text" name="tipo_seguro" required placeholder="Ej: Responsabilidad civil">
-        </div>
-        <div class="input-group">
-          <label>Carnet de conducir</label>
-          <input type="text" name="carnet_conducir" required placeholder="Número de carnet">
-        </div>
-      </div>
-
-      <div class="input-group">
-        <label>Último servicio realizado</label>
-        <input type="text" name="ultimo_servicio" required placeholder="Descripción breve del último servicio">
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-lg btn-block">Registrar como conductor</button>
+      <button type="submit" class="btn btn-primary btn-lg btn-block" style="margin-top:8px;">Registrarse como conductor</button>
     </form>
 
     <div class="links-row">
-      <p class="muted">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+      <a href="/login">¿Ya tienes cuenta? Inicia sesión</a>
+      <a href="/register">Regístrate como pasajero</a>
     </div>
   </div>
-</main>
+</div>
+
+<!-- Camera Modal -->
+<div id="camera-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:500px;">
+    <h3 style="margin-bottom:16px;">📸 Tomar foto</h3>
+    <video id="camera-feed" autoplay playsinline style="width:100%;border-radius:var(--radius-sm);background:#000;"></video>
+    <canvas id="camera-canvas" style="display:none;"></canvas>
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button type="button" class="btn btn-primary" onclick="capturePhoto()" style="flex:1;">Capturar</button>
+      <button type="button" class="btn btn-ghost" onclick="closeCamera()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var cameraStream = null;
+
+function selectVehicle(type) {
+  document.querySelectorAll('.vehicle-type-option').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.background = 'transparent';
+  });
+  var el = document.getElementById('vtype-' + type);
+  if (el) {
+    el.style.borderColor = 'var(--primary)';
+    el.style.background = 'rgba(124,58,237,0.08)';
+  }
+  document.getElementById('moto-fields').style.display = type === 'moto' ? 'block' : 'none';
+  document.getElementById('auto-fields').style.display = type === 'auto' ? 'block' : 'none';
+}
+
+function openCamera() {
+  var modal = document.getElementById('camera-modal');
+  modal.style.display = 'flex';
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+    .then(function(stream) {
+      cameraStream = stream;
+      document.getElementById('camera-feed').srcObject = stream;
+    })
+    .catch(function(err) {
+      showToast('Error al abrir cámara: ' + err.message, 'danger');
+      modal.style.display = 'none';
+    });
+}
+
+function closeCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(function(t) { t.stop(); });
+    cameraStream = null;
+  }
+  document.getElementById('camera-modal').style.display = 'none';
+}
+
+function capturePhoto() {
+  var video = document.getElementById('camera-feed');
+  var canvas = document.getElementById('camera-canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  document.getElementById('camera_data').value = dataUrl;
+
+  var preview = document.getElementById('photo-preview');
+  preview.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;">';
+
+  closeCamera();
+  showToast('Foto capturada ✅', 'success');
+}
+
+function previewFile(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var preview = document.getElementById('photo-preview');
+    preview.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;">';
+  };
+  reader.readAsDataURL(file);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var motoOpt = document.getElementById('vtype-moto');
+  if (motoOpt) motoOpt.style.borderColor = 'var(--primary)';
+});
+</script>
 {% endblock %}

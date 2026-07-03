@@ -36,6 +36,8 @@ def create_demo_users():
                 email="conductor@demo.com",
                 password=generate_password_hash("1234"),
                 phone="3009876543",
+                profile_picture="",
+                vehicle_type="moto",
                 placa="ABC123",
                 moto_marca="Honda",
                 moto_modelo="CB 150",

@@ -1,0 +1,7 @@
+DB conectada: ok
+[Migracion] Verificando columnas/tablas...
+  [-] No es MySQL, saltando migracion pymysql
+[Migracion] db.create_all()...
+[Migracion] OK
+ * Serving Flask app 'app'
+ * Debug mode: on

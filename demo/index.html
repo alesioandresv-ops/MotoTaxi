@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoTaxi - Tu App de Mototaxi</title>
+    <title>VAN - Tu Aplicación de Movilidad</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
             min-height: 100vh;
             overflow-x: hidden;
         }
@@ -24,15 +24,16 @@
         @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 
         .logo { text-align:center; margin-bottom:30px; }
-        .logo h1 { font-size:2.5em; color:#667eea; margin-bottom:10px; }
+        .logo h1 { font-size:2.5em; color:#7c3aed; margin-bottom:10px; }
+        .logo img { height:56px; margin-bottom:8px; }
         .logo p { color:#666; font-size:0.9em; }
 
         .form { display:flex; flex-direction:column; gap:15px; }
         .form h2 { text-align:center; color:#333; margin-bottom:10px; }
         .form input, .form select { padding:12px; border:1px solid #ddd; border-radius:8px; font-size:1em; transition:border-color 0.3s; }
-        .form input:focus, .form select:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,0.1); }
+        .form input:focus, .form select:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,0.1); }
         .form button[type="submit"], .btn-primary {
-            padding:12px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white;
+            padding:12px; background:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%); color:white;
             border:none; border-radius:8px; font-size:1em; font-weight:bold; cursor:pointer; transition:transform 0.2s;
         }
         .form button[type="submit"]:hover, .btn-primary:hover { transform:translateY(-2px); }
@@ -42,11 +43,11 @@
             padding:10px; margin:5px; border:2px solid; background:white; border-radius:8px;
             cursor:pointer; font-weight:bold; transition:all 0.3s;
         }
-        .demo-btn.passenger { border-color:#667eea; color:#667eea; }
-        .demo-btn.passenger:hover { background:#667eea; color:white; }
-        .demo-btn.driver { border-color:#764ba2; color:#764ba2; }
-        .demo-btn.driver:hover { background:#764ba2; color:white; }
-        .toggle-btn { background:none; border:none; color:#667eea; cursor:pointer; text-decoration:underline; font-size:0.9em; padding:5px; }
+        .demo-btn.passenger { border-color:#7c3aed; color:#7c3aed; }
+        .demo-btn.passenger:hover { background:#7c3aed; color:white; }
+        .demo-btn.driver { border-color:#6d28d9; color:#6d28d9; }
+        .demo-btn.driver:hover { background:#6d28d9; color:white; }
+        .toggle-btn { background:none; border:none; color:#7c3aed; cursor:pointer; text-decoration:underline; font-size:0.9em; padding:5px; }
         .error-message { background:#ff6b6b; color:white; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center; }
         .success-message { background:#4caf50; color:white; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center; }
         .toast {
@@ -62,11 +63,13 @@
 
         .dashboard { min-height:100vh; background:#f5f5f5; }
         .dashboard-header {
-            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white;
+            background:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%); color:white;
             padding:20px; display:flex; justify-content:space-between; align-items:center;
             box-shadow:0 4px 15px rgba(0,0,0,0.2); flex-wrap:wrap; gap:15px;
         }
         .driver-header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); }
+        .header-left { display:flex; align-items:center; gap:12px; }
+        .header-left img { height:36px; }
         .header-left h1 { margin:0; font-size:1.8em; }
         .header-center { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
         .header-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -75,9 +78,9 @@
             font-size:0.9em; font-weight:bold; transition:all 0.3s;
         }
         .profile-btn { background:rgba(255,255,255,0.2); color:white; }
-        .profile-btn:hover { background:white; color:#667eea; }
+        .profile-btn:hover { background:white; color:#7c3aed; }
         .history-btn { background:rgba(255,255,255,0.2); color:white; border:2px solid white; }
-        .history-btn:hover { background:white; color:#667eea; }
+        .history-btn:hover { background:white; color:#7c3aed; }
         .logout-btn { background:#ff6b6b; color:white; }
         .logout-btn:hover { background:#ff5252; }
 
@@ -90,11 +93,11 @@
         .request-form h2 { margin-top:0; color:#333; }
         .input-group { margin-bottom:20px; }
         .input-group label { display:block; margin-bottom:8px; font-weight:bold; color:#333; }
-        .input-group input { width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:1em; }
-        .input-group input:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,0.1); }
+        .input-group input, .input-group select { width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:1em; }
+        .input-group input:focus, .input-group select:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,0.1); }
 
         .request-btn, .btn-block {
-            width:100%; padding:15px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+            width:100%; padding:15px; background:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%);
             color:white; border:none; border-radius:8px; font-size:1.1em; font-weight:bold; cursor:pointer; transition:transform 0.2s;
         }
         .request-btn:hover { transform:translateY(-2px); }
@@ -103,7 +106,7 @@
         .btn-success { background:#4caf50; color:white; }
         .btn-success:hover { background:#45a049; }
 
-        .trip-status { background:#f0f4ff; padding:20px; border-radius:8px; border-left:4px solid #667eea; }
+        .trip-status { background:#f0f4ff; padding:20px; border-radius:8px; border-left:4px solid #7c3aed; }
         .trip-status h3 { margin-top:0; color:#333; }
         .status-badge { font-weight:bold; padding:4px 12px; border-radius:20px; display:inline-block; }
         .status-badge.requested { background:#fff3e0; color:#ff9800; }
@@ -123,7 +126,7 @@
         .cancel-btn:hover { background:#ff5252; }
 
         .info-section { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); grid-column:1/-1; }
-        .info-section h3 { color:#667eea; margin-top:0; }
+        .info-section h3 { color:#7c3aed; margin-top:0; }
         .info-section ul { list-style:none; padding:0; }
         .info-section li { padding:10px 0; color:#555; font-size:1.05em; }
 
@@ -134,7 +137,7 @@
         .trip-card { background:#f9f9f9; border:1px solid #eee; border-radius:12px; padding:20px; transition:all 0.3s; }
         .trip-card:hover { box-shadow:0 4px 15px rgba(0,0,0,0.1); transform:translateY(-2px); }
         .trip-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
-        .fare { font-size:1.3em; font-weight:bold; color:#667eea; }
+        .fare { font-size:1.3em; font-weight:bold; color:#7c3aed; }
         .trip-card p { margin:8px 0; color:#555; }
         .rate-btn { font-size:0.8em; padding:4px 12px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; }
 
@@ -194,11 +197,23 @@
             display:flex; align-items:center; gap:12px; padding:10px 14px;
             background:#f9f9f9; border-radius:8px; border:1px solid #eee;
         }
-        .driver-mini-card .avatar { width:40px; height:40px; border-radius:50%; background:#667eea; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+        .driver-mini-card .avatar { width:40px; height:40px; border-radius:50%; background:#7c3aed; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; }
         .driver-mini-card .info { flex:1; }
         .driver-mini-card .info h4 { margin:0; font-size:0.95em; }
         .driver-mini-card .info p { margin:0; font-size:0.8em; color:#666; }
-        .driver-mini-card .dist { font-weight:bold; color:#667eea; }
+        .driver-mini-card .dist { font-weight:bold; color:#7c3aed; }
+
+        .vehicle-type-selector {
+            display:flex; gap:12px; margin-bottom:20px;
+        }
+        .vehicle-type-selector button {
+            flex:1; padding:14px; border:2px solid #ddd; border-radius:12px; background:white;
+            cursor:pointer; font-weight:bold; font-size:1em; transition:all 0.3s; text-align:center;
+        }
+        .vehicle-type-selector button.active {
+            border-color:#7c3aed; background:rgba(124,58,237,0.08);
+        }
+        .vehicle-type-selector button .icon { font-size:1.5rem; display:block; margin-bottom:4px; }
 
         .review-modal {
             position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex;
@@ -220,7 +235,7 @@
         }
         .review-actions { display:flex; gap:8px; }
         .review-actions button { flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; transition:all 0.3s; }
-        .review-actions .btn-submit { background:#667eea; color:white; }
+        .review-actions .btn-submit { background:#7c3aed; color:white; }
         .review-actions .btn-cancel { background:#eee; color:#666; }
 
         .profile-section { background:white; border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.1); max-width:600px; margin:20px auto; }
@@ -228,7 +243,7 @@
         .profile-field { margin-bottom:16px; }
         .profile-field label { display:block; font-weight:bold; color:#555; margin-bottom:4px; font-size:0.9em; }
         .profile-field .value { color:#333; font-size:1.05em; }
-        .profile-picture { width:100px; height:100px; border-radius:50%; background:#667eea; color:white; display:flex; align-items:center; justify-content:center; font-size:2.5rem; font-weight:bold; margin:0 auto 20px; overflow:hidden; }
+        .profile-picture { width:100px; height:100px; border-radius:50%; background:#7c3aed; color:white; display:flex; align-items:center; justify-content:center; font-size:2.5rem; font-weight:bold; margin:0 auto 20px; overflow:hidden; }
         .profile-picture img { width:100%; height:100%; object-fit:cover; }
 
         .stars-display { color:#f59e0b; font-size:1.1rem; letter-spacing:2px; }
@@ -250,20 +265,20 @@
             <div class="login-container">
                 <div class="login-box">
                     <div class="logo">
-                        <h1>🏍️ MotoTaxi</h1>
-                        <p>Tu app de mototaxi de confianza</p>
+                        <img src="/static/logo.png" alt="VAN">
+                        <p>Tu aplicación de movilidad de confianza</p>
                     </div>
                     <div id="error-message" class="error-message" style="display:none;"></div>
                     <form class="form" id="login-form">
-                        <h2>Inicia Sesión</h2>
-                        <input type="email" id="login-email" placeholder="Correo electrónico" required>
-                        <input type="password" id="login-password" placeholder="Contraseña" required>
-                        <button type="submit">Inicia Sesión</button>
+                        <h2>🚀 Demo Interactivo</h2>
+                        <p style="text-align:center;color:#666;font-size:0.9em;margin-bottom:10px;">Prueba la app sin registrarte</p>
                         <div class="demo-buttons">
-                            <p>O prueba con demo:</p>
                             <button type="button" class="demo-btn passenger" onclick="loginDemo('passenger')">👤 Demo Pasajero</button>
-                            <button type="button" class="demo-btn driver" onclick="loginDemo('driver')">🏍️ Demo Conductor</button>
+                            <button type="button" class="demo-btn driver" onclick="loginDemo('driver')">🏍️🚗 Demo Conductor</button>
                         </div>
+                        <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+                        <p style="text-align:center;color:#999;font-size:0.85em;">¿Quieres usar la versión completa?</p>
+                        <a href="/app" class="btn-primary" style="display:block;text-align:center;text-decoration:none;padding:12px;background:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%);color:white;border:none;border-radius:8px;font-weight:bold;">🌐 Ir a la App Completa</a>
                     </form>
                 </div>
             </div>
@@ -273,7 +288,7 @@
         <div id="passenger-page" class="page">
             <div class="dashboard">
                 <header class="dashboard-header">
-                    <div class="header-left"><h1>🏍️ MotoTaxi</h1></div>
+                    <div class="header-left"><img src="/static/logo.png" alt="VAN"><h1>VAN</h1></div>
                     <div class="header-center">
                         <span>👤 <span id="passenger-name"></span></span>
                         <span>⭐ <span id="passenger-rating"></span></span>
@@ -301,6 +316,14 @@
                                 <h2>Solicitar Viaje</h2>
                                 <div id="passenger-trip-status"></div>
                                 <div id="passenger-request-form">
+                                    <div class="vehicle-type-selector">
+                                        <button type="button" class="active" onclick="selectVehicleType('moto')" id="vt-moto">
+                                            <span class="icon">🛵</span> Moto
+                                        </button>
+                                        <button type="button" onclick="selectVehicleType('auto')" id="vt-auto">
+                                            <span class="icon">🚗</span> Auto
+                                        </button>
+                                    </div>
                                     <div class="input-group">
                                         <label>📍 Ubicación de Recogida</label>
                                         <input type="text" id="pickup-address" placeholder="Ej: Calle Principal 123">
@@ -311,7 +334,7 @@
                                     </div>
                                     <div id="fare-estimate" style="display:none;margin-bottom:12px;padding:12px;background:#f0f4ff;border-radius:8px;text-align:center;">
                                         <span style="color:#666;">Tarifa estimada:</span>
-                                        <span style="font-size:1.3rem;font-weight:700;color:#667eea;" id="fare-amount">$0.00</span>
+                                        <span style="font-size:1.3rem;font-weight:700;color:#7c3aed;" id="fare-amount">$0.00</span>
                                     </div>
                                     <div id="nearby-drivers-container" style="margin-bottom:16px;"></div>
                                     <button class="request-btn" onclick="requestTrip()">Solicitar Viaje</button>
@@ -332,7 +355,7 @@
                             <h2>👤 Mi Perfil</h2>
                             <div class="profile-picture" id="passenger-profile-pic"><span id="passenger-profile-initial">J</span></div>
                             <div class="profile-field"><label>Nombre</label><div class="value" id="passenger-profile-name"></div></div>
-                            <div class="profile-field"><label>Email</label><div class="value" id="passenger-profile-email"></div></div>
+                            <div class="profile-field"><label>Correo electrónico</label><div class="value" id="passenger-profile-email"></div></div>
                             <div class="profile-field"><label>Teléfono</label><div class="value" id="passenger-profile-phone"></div></div>
                             <div class="profile-field"><label>Calificación</label><div class="value" id="passenger-profile-rating"></div></div>
                             <div class="profile-field"><label>Reseñas recibidas</label><div id="passenger-profile-reviews"></div></div>
@@ -360,10 +383,11 @@
         <div id="driver-page" class="page">
             <div class="dashboard">
                 <header class="driver-header">
-                    <div class="header-left"><h1>🏍️ MotoTaxi Conductor</h1></div>
+                    <div class="header-left"><img src="/static/logo.png" alt="VAN" style="height:28px;"><h1>VAN Conductor</h1></div>
                     <div class="header-center">
                         <span>👤 <span id="driver-name"></span></span>
                         <span>⭐ <span id="driver-rating"></span></span>
+                        <span id="driver-vehicle-badge" style="font-size:0.85rem;"></span>
                         <button class="online-btn" id="online-btn" onclick="toggleOnline()">⚫ Fuera de Línea</button>
                     </div>
                     <div class="header-right">
@@ -379,6 +403,7 @@
                                 <h2>Estado Actual</h2>
                                 <div class="status-info">
                                     <p><strong>Estado:</strong> <span id="driver-status">⚫ Fuera de Línea</span></p>
+                                    <p><strong>Vehículo:</strong> <span id="driver-vehicle-status">🏍️ Moto</span></p>
                                     <p><strong>Viajes Completados:</strong> <span id="driver-completed-trips">0</span></p>
                                     <p><strong>Ganancias del Día:</strong> $<span id="driver-earnings">0.00</span></p>
                                     <p><strong>Calificación:</strong> ⭐ <span id="driver-rating-value"></span></p>
@@ -409,11 +434,11 @@
                             <div class="info-card">
                                 <h3>💡 Consejos</h3>
                                 <ul>
-                                    <li>Usa siempre el casco</li>
+                                    <li>Usa siempre el casco (moto) / cinturón (auto)</li>
                                     <li>Respeta las señales de tránsito</li>
-                                    <li>Mantén tu moto en buen estado</li>
+                                    <li>Mantén tu vehículo en buen estado</li>
                                     <li>Sé amable con los pasajeros</li>
-                                    <li>Mantén las manos en el manillar</li>
+                                    <li>Mantén las manos en el manillar / volante</li>
                                 </ul>
                             </div>
                         </div>
@@ -422,13 +447,15 @@
 
                 <div id="driver-profile-section" style="display:none;max-width:1200px;margin:0 auto;padding:20px;">
                     <div class="profile-section" style="max-width:600px;">
-                        <h2>🏍️ Mi Perfil de Conductor</h2>
+                        <h2 id="driver-profile-title">🏍️ Mi Perfil de Conductor</h2>
                         <div class="profile-picture" id="driver-profile-pic"><span id="driver-profile-initial">C</span></div>
                         <div class="profile-field"><label>Nombre</label><div class="value" id="driver-profile-name"></div></div>
-                        <div class="profile-field"><label>Email</label><div class="value" id="driver-profile-email"></div></div>
+                        <div class="profile-field"><label>Correo electrónico</label><div class="value" id="driver-profile-email"></div></div>
                         <div class="profile-field"><label>Teléfono</label><div class="value" id="driver-profile-phone"></div></div>
                         <div class="profile-field"><label>Calificación</label><div class="value" id="driver-profile-rating"></div></div>
-                        <div class="profile-field"><label>Moto</label><div class="value" id="driver-profile-moto"></div></div>
+                        <div class="profile-field"><label>Tipo de vehículo</label><div class="value" id="driver-profile-vehicle-type"></div></div>
+                        <div class="profile-field" id="driver-profile-moto-field"><label>Moto</label><div class="value" id="driver-profile-moto"></div></div>
+                        <div class="profile-field" id="driver-profile-auto-field" style="display:none;"><label>Auto</label><div class="value" id="driver-profile-auto"></div></div>
                         <div class="profile-field"><label>Placa</label><div class="value" id="driver-profile-placa"></div></div>
                         <div class="profile-field"><label>Reseñas recibidas</label><div id="driver-profile-reviews"></div></div>
                         <button class="btn-primary btn-block" onclick="editDriverProfile()" style="margin-top:16px;">✏️ Editar Perfil</button>
@@ -438,13 +465,21 @@
 
                 <div id="driver-edit-profile-section" style="display:none;max-width:1200px;margin:0 auto;padding:20px;">
                     <div class="profile-section" style="max-width:600px;">
-                        <h2>✏️ Editar Perfil</h2>
+                        <h2 id="driver-edit-title">✏️ Editar Perfil</h2>
                         <div class="form">
                             <div class="input-group"><label>Nombre</label><input type="text" id="edit-driver-name"></div>
                             <div class="input-group"><label>Teléfono</label><input type="tel" id="edit-driver-phone"></div>
-                            <div class="input-group"><label>Marca de moto</label><input type="text" id="edit-driver-marca"></div>
-                            <div class="input-group"><label>Modelo</label><input type="text" id="edit-driver-modelo"></div>
-                            <div class="input-group"><label>Color</label><input type="text" id="edit-driver-color"></div>
+                            <div id="edit-moto-fields">
+                                <div class="input-group"><label>Marca de moto</label><input type="text" id="edit-driver-marca"></div>
+                                <div class="input-group"><label>Modelo</label><input type="text" id="edit-driver-modelo"></div>
+                                <div class="input-group"><label>Color</label><input type="text" id="edit-driver-color"></div>
+                            </div>
+                            <div id="edit-auto-fields" style="display:none;">
+                                <div class="input-group"><label>Marca de auto</label><input type="text" id="edit-auto-marca"></div>
+                                <div class="input-group"><label>Modelo</label><input type="text" id="edit-auto-modelo"></div>
+                                <div class="input-group"><label>Color</label><input type="text" id="edit-auto-color"></div>
+                                <div class="input-group"><label>Año</label><input type="text" id="edit-auto-anio"></div>
+                            </div>
                             <div class="input-group"><label>Placa</label><input type="text" id="edit-driver-placa"></div>
                             <button class="btn-primary btn-block" onclick="saveDriverProfile()">Guardar Cambios</button>
                             <button class="history-btn" onclick="showDriverProfile()" style="margin-top:8px;width:100%;border:1px solid #ddd;color:#666;">← Cancelar</button>
@@ -479,7 +514,12 @@
     </div>
 
     <script>
-        // ═══════ STATE ═══════
+        // ═══════ CONSTANTS ═══════
+        const FARE_CONSTANTS = {
+            moto: { BASE: 3.0, POR_KM: 1.5, POR_MIN: 0.25, MINIMA: 5.0 },
+            auto: { BASE: 4.5, POR_KM: 2.0, POR_MIN: 0.30, MINIMA: 7.0 }
+        };
+
         const STATUS_LABEL = {
             requested: 'Solicitado',
             accepted: 'Aceptado',
@@ -487,6 +527,9 @@
             completed: 'Completado',
             cancelled: 'Cancelado'
         };
+
+        let selectedVehicleType = 'moto';
+
         let appState = {
             user: null,
             currentTrip: null,
@@ -497,20 +540,28 @@
             userLat: null,
             userLng: null,
             pendingTrips: [
-                { id: '1', pickupAddress: 'Calle Principal 123', dropoffAddress: 'Centro Comercial XYZ', fare: 25.50, status: 'requested', lat: 19.4326, lng: -99.1332 },
-                { id: '2', pickupAddress: 'Hospital General', dropoffAddress: 'Terminal de Autobuses', fare: 18.75, status: 'requested', lat: 19.4340, lng: -99.1400 },
-                { id: '3', pickupAddress: 'Plaza Central', dropoffAddress: 'Universidad', fare: 22.00, status: 'requested', lat: 19.4300, lng: -99.1300 },
+                { id: '1', pickupAddress: 'Calle Principal 123', dropoffAddress: 'Centro Comercial XYZ', fare: 25.50, status: 'requested', lat: 19.4326, lng: -99.1332, vehicleType: 'moto' },
+                { id: '2', pickupAddress: 'Hospital General', dropoffAddress: 'Terminal de Autobuses', fare: 18.75, status: 'requested', lat: 19.4340, lng: -99.1400, vehicleType: 'moto' },
+                { id: '3', pickupAddress: 'Plaza Central', dropoffAddress: 'Universidad', fare: 32.00, status: 'requested', lat: 19.4300, lng: -99.1300, vehicleType: 'auto' },
             ],
             nearbyDrivers: [
-                { id: 1, name: 'Miguel R.', rating: 4.9, moto: 'Yamaha YZF-R3', color: 'Azul', placa: 'XYZ789', lat: 19.4300, lng: -99.1350, dist: 0.8 },
-                { id: 2, name: 'Ana G.', rating: 4.7, moto: 'Honda CB 190', color: 'Negra', placa: 'ABC456', lat: 19.4330, lng: -99.1380, dist: 1.2 },
-                { id: 3, name: 'Pedro S.', rating: 4.5, moto: 'Suzuki GSX-S150', color: 'Roja', placa: 'DEF123', lat: 19.4350, lng: -99.1280, dist: 1.5 },
+                { id: 1, name: 'Miguel R.', rating: 4.9, vehicleType: 'moto', vehInfo: 'Yamaha YZF-R3', color: 'Azul', placa: 'XYZ789', lat: 19.4300, lng: -99.1350, dist: 0.8 },
+                { id: 2, name: 'Ana G.', rating: 4.7, vehicleType: 'moto', vehInfo: 'Honda CB 190', color: 'Negra', placa: 'ABC456', lat: 19.4330, lng: -99.1380, dist: 1.2 },
+                { id: 3, name: 'Pedro S.', rating: 4.5, vehicleType: 'auto', vehInfo: 'Toyota Corolla', color: 'Blanco', placa: 'DEF123', lat: 19.4350, lng: -99.1280, dist: 1.5 },
             ],
             fakeDriverLocation: { lat: 19.4310, lng: -99.1340 },
             reviewId: null
         };
 
         let locationWatchId = null;
+
+        // ═══════ VEHICLE TYPE SELECTOR ═══════
+        function selectVehicleType(vt) {
+            selectedVehicleType = vt;
+            document.querySelectorAll('.vehicle-type-selector button').forEach(function(b) { b.classList.remove('active'); });
+            document.getElementById('vt-' + vt).classList.add('active');
+            updateFareEstimate();
+        }
 
         // ═══════ TOAST ═══════
         function showToast(msg, type) {
@@ -554,11 +605,13 @@
             var el = document.getElementById('nearby-drivers-container');
             if (!el || appState.currentTrip) return;
 
-            var html = '<p style="font-weight:bold;margin-bottom:8px;color:#333;">🛵 Conductores cercanos</p><div class="nearby-drivers">';
-            appState.nearbyDrivers.forEach(function(d) {
+            var filtered = appState.nearbyDrivers;
+            var html = '<p style="font-weight:bold;margin-bottom:8px;color:#333;">🛵🚗 Conductores cercanos</p><div class="nearby-drivers">';
+            filtered.forEach(function(d) {
+                var icon = d.vehicleType === 'auto' ? '🚗' : '🛵';
                 html += '<div class="driver-mini-card">' +
                     '<div class="avatar">' + d.name[0] + '</div>' +
-                    '<div class="info"><h4>' + d.name + '</h4><p>⭐ ' + d.rating + ' • ' + d.moto + '</p></div>' +
+                    '<div class="info"><h4>' + d.name + '</h4><p>' + icon + ' ' + d.vehInfo + ' • ⭐ ' + d.rating + '</p></div>' +
                     '<div class="dist">' + d.dist + ' km</div>' +
                 '</div>';
             });
@@ -579,7 +632,10 @@
                 appState.user = { id: '1', name: 'Juan Pasajero', email: 'pasajero@demo.com', userType: 'passenger', rating: 4.8, phone: '3001234567', ratingCount: 12 };
             } else {
                 appState.user = { id: '2', name: 'Carlos Conductor', email: 'conductor@demo.com', userType: 'driver', rating: 4.9, phone: '3009876543', ratingCount: 25,
-                    motoMarca: 'Yamaha', motoModelo: 'YZF-R3', motoColor: 'Azul', placa: 'XYZ789' };
+                    vehicleType: 'moto',
+                    motoMarca: 'Yamaha', motoModelo: 'YZF-R3', motoColor: 'Azul',
+                    autoMarca: '', autoModelo: '', autoColor: '', autoAnio: '',
+                    placa: 'XYZ789' };
             }
             showPage(userType);
         }
@@ -621,14 +677,18 @@
             var dropoff = document.getElementById('dropoff-address').value;
             if (!pickup || !dropoff) { showError('Completa todos los campos'); return; }
 
+            var fare = parseFloat(document.getElementById('fare-amount').textContent.replace('$', '')) || FARE_CONSTANTS[selectedVehicleType].MINIMA;
+            var vt = selectedVehicleType;
+
             var trip = {
                 id: Date.now().toString(),
                 pickupAddress: pickup,
                 dropoffAddress: dropoff,
-                fare: parseFloat(document.getElementById('fare-amount').textContent.replace('$', '')) || (Math.random() * 30 + 8),
+                fare: fare,
                 status: 'requested',
                 createdAt: new Date(),
-                distance: Math.random() * 8 + 1
+                distance: Math.random() * 8 + 1,
+                vehicleType: vt
             };
 
             appState.currentTrip = trip;
@@ -645,7 +705,8 @@
                     appState.currentTrip.driverName = 'Carlos Rodriguez';
                     appState.currentTrip.driverPhone = '3009876543';
                     appState.currentTrip.driverRating = 4.9;
-                    appState.currentTrip.motoInfo = 'Yamaha YZF-R3 • Azul • XYZ789';
+                    appState.currentTrip.vehicleType = vt;
+                    appState.currentTrip.vehInfo = vt === 'auto' ? 'Toyota Corolla • Blanco' : 'Yamaha YZF-R3 • Azul';
                     appState.currentTrip.etaMin = 3;
                     appState.fakeDriverLocation = { lat: 19.4305, lng: -99.1335 };
                     updatePassengerUI();
@@ -712,12 +773,13 @@
                     etaHtml = '<div class="eta-badge">🛵 Tu conductor llegará en aproximadamente <strong>' + t.etaMin + '\'</strong></div>';
                 }
 
+                var vtIcon = t.vehicleType === 'auto' ? '🚗' : '🛵';
                 var driverHtml = '';
                 if (t.status === 'accepted' || t.status === 'ongoing') {
-                    driverHtml = '<div class="trip-info"><h4 style="margin-bottom:8px;">🏍️ Información del conductor</h4>' +
+                    driverHtml = '<div class="trip-info"><h4 style="margin-bottom:8px;">' + vtIcon + ' Información del conductor</h4>' +
                         '<p><strong>Nombre:</strong> ' + (t.driverName || 'Carlos Rodriguez') + '</p>' +
                         '<p><strong>⭐ Calificación:</strong> ' + (t.driverRating || 4.9) + '</p>' +
-                        '<p><strong>Moto:</strong> ' + (t.motoInfo || 'Yamaha YZF-R3 • Azul • XYZ789') + '</p></div>';
+                        '<p><strong>Vehículo:</strong> ' + (t.vehInfo || (t.vehicleType === 'auto' ? 'Toyota Corolla • Blanco' : 'Yamaha YZF-R3 • Azul')) + '</p></div>';
                 }
 
                 var tripMapHtml = '';
@@ -734,8 +796,9 @@
                     '<div class="trip-info">' +
                         '<p><strong>📍 Origen:</strong> ' + t.pickupAddress + '</p>' +
                         '<p><strong>🎯 Destino:</strong> ' + t.dropoffAddress + '</p>' +
-                        '<p><strong>💰 Tarifa:</strong> <span style="color:#667eea;font-weight:700;">$' + t.fare.toFixed(2) + '</span></p>' +
+                        '<p><strong>💰 Tarifa:</strong> <span style="color:#7c3aed;font-weight:700;">$' + t.fare.toFixed(2) + '</span></p>' +
                         (t.distance ? '<p><strong>📏 Distancia:</strong> ' + t.distance.toFixed(1) + ' km</p>' : '') +
+                        (t.vehicleType ? '<p><strong>🚗 Tipo:</strong> ' + (t.vehicleType === 'auto' ? 'Auto' : 'Moto') + '</p>' : '') +
                     '</div>' +
                     driverHtml +
                     (tripMapHtml ? '<div class="map-container" style="margin-top:12px;min-height:300px;">' + tripMapHtml + '</div>' : '') +
@@ -906,13 +969,23 @@
             document.getElementById('stats-earnings').textContent = appState.earnings.toFixed(2);
             document.getElementById('stats-average').textContent = appState.completedTrips.length > 0 ? (appState.earnings / appState.completedTrips.length).toFixed(2) : '0.00';
 
-            document.getElementById('pending-trips-count').textContent = appState.pendingTrips.length;
+            var u = appState.user;
+            if (u) {
+                var vtIcon = u.vehicleType === 'auto' ? '🚗' : '🛵';
+                var vtLabel = u.vehicleType === 'auto' ? 'Auto' : 'Moto';
+                document.getElementById('driver-vehicle-badge').textContent = vtIcon + ' ' + vtLabel;
+                document.getElementById('driver-vehicle-status').innerHTML = vtIcon + ' ' + vtLabel;
+            }
+
+            var ptc = document.getElementById('pending-trips-count');
+            if (ptc) ptc.textContent = appState.pendingTrips.length;
             document.getElementById('completed-trips-count').textContent = appState.completedTrips.length;
 
             var mainContent = '';
             if (appState.currentTrip) {
+                var vtIcon = appState.currentTrip.vehicleType === 'auto' ? '🚗' : '🛵';
                 mainContent = '<div class="active-trip-card">' +
-                    '<h2>🟢 Viaje Activo</h2>' +
+                    '<h2>🟢 Viaje Activo ' + vtIcon + '</h2>' +
                     '<div class="trip-details">' +
                         '<p><strong>📍 Origen:</strong> ' + appState.currentTrip.pickupAddress + '</p>' +
                         '<p><strong>🎯 Destino:</strong> ' + appState.currentTrip.dropoffAddress + '</p>' +
@@ -932,11 +1005,12 @@
                 } else {
                     tripsHTML = '<div class="trips-list" style="display:flex;flex-direction:column;gap:12px;">';
                     appState.pendingTrips.forEach(function(trip) {
+                        var vtIcon = trip.vehicleType === 'auto' ? '🚗' : '🛵';
                         tripsHTML += '<div class="trip-item">' +
                             '<div class="trip-item-info">' +
                                 '<p><strong>📍 ' + trip.pickupAddress + '</strong></p>' +
                                 '<p style="color:#666;">→ ' + trip.dropoffAddress + '</p>' +
-                                '<p><strong>💰 $' + trip.fare.toFixed(2) + '</strong></p>' +
+                                '<p><strong>💰 $' + trip.fare.toFixed(2) + '</strong> ' + vtIcon + '</p>' +
                             '</div>' +
                             '<button class="accept-btn" onclick="acceptTrip(\'' + trip.id + '\')">Aceptar</button>' +
                         '</div>';
@@ -954,7 +1028,8 @@
             var completedHTML = appState.completedTrips.length === 0
                 ? '<p style="text-align:center;color:#999;padding:20px;">Sin viajes completados</p>'
                 : appState.completedTrips.slice(0, 5).map(function(trip) {
-                    return '<div class="completed-trip"><p>' + trip.pickupAddress + '</p><p class="destination">→ ' + trip.dropoffAddress + '</p><p class="fare">$' + trip.fare.toFixed(2) + ' <button class="rate-btn" onclick="rateTripOpen(\'' + trip.id + '\',\'driver\')">⭐</button></p></div>';
+                    var vtIcon = trip.vehicleType === 'auto' ? '🚗' : '🛵';
+                    return '<div class="completed-trip"><p>' + vtIcon + ' ' + trip.pickupAddress + '</p><p class="destination">→ ' + trip.dropoffAddress + '</p><p class="fare">$' + trip.fare.toFixed(2) + ' <button class="rate-btn" onclick="rateTripOpen(\'' + trip.id + '\',\'driver\')">⭐</button></p></div>';
                 }).join('');
             document.getElementById('driver-completed-trips-list').innerHTML = completedHTML;
         }
@@ -970,9 +1045,22 @@
             document.getElementById('driver-profile-email').textContent = u.email;
             document.getElementById('driver-profile-phone').textContent = u.phone || 'No registrado';
             document.getElementById('driver-profile-rating').textContent = '⭐ ' + u.rating + ' (' + (u.ratingCount || 0) + ' reseñas)';
-            document.getElementById('driver-profile-moto').textContent = (u.motoMarca || 'Yamaha') + ' ' + (u.motoModelo || 'YZF-R3') + ' • ' + (u.motoColor || 'Azul');
             document.getElementById('driver-profile-placa').textContent = u.placa || 'XYZ789';
             document.getElementById('driver-profile-initial').textContent = u.name[0];
+
+            if (u.vehicleType === 'auto') {
+                document.getElementById('driver-profile-title').textContent = '🚗 Mi Perfil de Conductor';
+                document.getElementById('driver-profile-vehicle-type').textContent = '🚗 Auto';
+                document.getElementById('driver-profile-moto-field').style.display = 'none';
+                document.getElementById('driver-profile-auto-field').style.display = 'block';
+                document.getElementById('driver-profile-auto').textContent = (u.autoMarca || 'Toyota') + ' ' + (u.autoModelo || 'Corolla') + ' • ' + (u.autoColor || 'Blanco') + (u.autoAnio ? ' • ' + u.autoAnio : '');
+            } else {
+                document.getElementById('driver-profile-title').textContent = '🏍️ Mi Perfil de Conductor';
+                document.getElementById('driver-profile-vehicle-type').textContent = '🛵 Moto';
+                document.getElementById('driver-profile-moto-field').style.display = 'block';
+                document.getElementById('driver-profile-auto-field').style.display = 'none';
+                document.getElementById('driver-profile-moto').textContent = (u.motoMarca || 'Yamaha') + ' ' + (u.motoModelo || 'YZF-R3') + ' • ' + (u.motoColor || 'Azul');
+            }
 
             var reviewsHtml = appState.completedTrips.map(function() {
                 return '<div style="padding:8px;border-bottom:1px solid #eee;font-size:0.9em;">⭐ 5.0 — Excelente conductor</div>';
@@ -994,19 +1082,42 @@
             var u = appState.user;
             document.getElementById('edit-driver-name').value = u.name;
             document.getElementById('edit-driver-phone').value = u.phone || '';
-            document.getElementById('edit-driver-marca').value = u.motoMarca || 'Yamaha';
-            document.getElementById('edit-driver-modelo').value = u.motoModelo || 'YZF-R3';
-            document.getElementById('edit-driver-color').value = u.motoColor || 'Azul';
-            document.getElementById('edit-driver-placa').value = u.placa || 'XYZ789';
+
+            if (u.vehicleType === 'auto') {
+                document.getElementById('driver-edit-title').textContent = '🚗 Editar Perfil';
+                document.getElementById('edit-moto-fields').style.display = 'none';
+                document.getElementById('edit-auto-fields').style.display = 'block';
+                document.getElementById('edit-auto-marca').value = u.autoMarca || 'Toyota';
+                document.getElementById('edit-auto-modelo').value = u.autoModelo || 'Corolla';
+                document.getElementById('edit-auto-color').value = u.autoColor || 'Blanco';
+                document.getElementById('edit-auto-anio').value = u.autoAnio || '2023';
+                document.getElementById('edit-driver-placa').value = u.placa || 'XYZ789';
+            } else {
+                document.getElementById('driver-edit-title').textContent = '🏍️ Editar Perfil';
+                document.getElementById('edit-moto-fields').style.display = 'block';
+                document.getElementById('edit-auto-fields').style.display = 'none';
+                document.getElementById('edit-driver-marca').value = u.motoMarca || 'Yamaha';
+                document.getElementById('edit-driver-modelo').value = u.motoModelo || 'YZF-R3';
+                document.getElementById('edit-driver-color').value = u.motoColor || 'Azul';
+                document.getElementById('edit-driver-placa').value = u.placa || 'XYZ789';
+            }
         }
 
         function saveDriverProfile() {
             var u = appState.user;
             u.name = document.getElementById('edit-driver-name').value;
             u.phone = document.getElementById('edit-driver-phone').value;
-            u.motoMarca = document.getElementById('edit-driver-marca').value;
-            u.motoModelo = document.getElementById('edit-driver-modelo').value;
-            u.motoColor = document.getElementById('edit-driver-color').value;
+
+            if (u.vehicleType === 'auto') {
+                u.autoMarca = document.getElementById('edit-auto-marca').value;
+                u.autoModelo = document.getElementById('edit-auto-modelo').value;
+                u.autoColor = document.getElementById('edit-auto-color').value;
+                u.autoAnio = document.getElementById('edit-auto-anio').value;
+            } else {
+                u.motoMarca = document.getElementById('edit-driver-marca').value;
+                u.motoModelo = document.getElementById('edit-driver-modelo').value;
+                u.motoColor = document.getElementById('edit-driver-color').value;
+            }
             u.placa = document.getElementById('edit-driver-placa').value;
             document.getElementById('driver-name').textContent = u.name;
             showToast('Perfil actualizado', 'success');
@@ -1035,6 +1146,7 @@
                     tripsHTML = '<p style="text-align:center;color:#999;">No hay viajes registrados</p>';
                 } else {
                     tripsHTML = '<div class="trips-list">' + appState.trips.map(function(trip) {
+                        var vtIcon = trip.vehicleType === 'auto' ? '🚗' : '🛵';
                         return '<div class="trip-card">' +
                             '<div class="trip-card-header">' +
                                 '<span class="status-badge ' + trip.status + '">' + (STATUS_LABEL[trip.status] || trip.status) + '</span>' +
@@ -1042,7 +1154,7 @@
                             '</div>' +
                             '<p><strong>De:</strong> ' + trip.pickupAddress + '</p>' +
                             '<p><strong>A:</strong> ' + trip.dropoffAddress + '</p>' +
-                            '<p><small>' + (trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('es-ES') : '') + '</small></p>' +
+                            '<p><small>' + (trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('es-ES') : '') + ' ' + vtIcon + '</small></p>' +
                             (trip.status === 'completed' ? '<button class="rate-btn" onclick="rateTripOpen(\'' + trip.id + '\',\'passenger\')" style="margin-top:8px;">⭐ Calificar</button>' : '') +
                         '</div>';
                     }).join('') + '</div>';
@@ -1109,9 +1221,11 @@
             var pickup = document.getElementById('pickup-address').value;
             var dropoff = document.getElementById('dropoff-address').value;
             if (!pickup || !dropoff) { document.getElementById('fare-estimate').style.display = 'none'; return; }
-            var base = 3.0;
+
+            var fc = FARE_CONSTANTS[selectedVehicleType];
             var dist = Math.max(1, Math.abs(pickup.length - dropoff.length));
-            var fare = base + dist * 0.75;
+            var dur = Math.max(5, dist * 3);
+            var fare = Math.max(fc.BASE + dist * fc.POR_KM + dur * fc.POR_MIN, fc.MINIMA);
             document.getElementById('fare-amount').textContent = '$' + fare.toFixed(2);
             document.getElementById('fare-estimate').style.display = 'block';
         }

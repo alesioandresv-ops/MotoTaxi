@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}VAN para Empresas{% endblock %}
+{% block content %}
+<div class="page active page-transition">
+  <div class="container" style="padding-top:32px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <a href="/" class="btn btn-ghost-sm">← Volver a VAN</a>
+    </div>
+
+    <div class="company-hero">
+      <h1>VAN para Empresas</h1>
+      <p>Solución de movilidad para tu equipo. Gestiona viajes, controla gastos y mantén a tus empleados seguros con nuestra plataforma corporativa.</p>
+      <a href="/company/register" class="btn btn-primary btn-lg">Comenzar ahora</a>
+      <a href="/company/login" class="btn btn-outline btn-lg" style="margin-left:12px;">Iniciar sesión</a>
+    </div>
+
+    <div class="plans-grid">
+      <div class="plan-card">
+        <div class="plan-badge">Recomendado</div>
+        <div class="plan-name">Básico</div>
+        <div class="plan-price">$60.000 <span>/mes</span></div>
+        <p class="plan-desc">Ideal para grupos de 1 a 15 personas</p>
+        <ul class="plan-features">
+          <li>Hasta 15 empleados</li>
+          <li>Hasta 100 viajes por mes</li>
+          <li>Panel básico con estadísticas</li>
+          <li>Soporte por correo electrónico</li>
+          <li>Gestión de miembros del equipo</li>
+        </ul>
+        <a href="/company/register?plan=basic" class="btn btn-outline btn-lg btn-block">Elegir Básico</a>
+      </div>
+
+      <div class="plan-card featured">
+        <div class="plan-badge">Acceso Full</div>
+        <div class="plan-name">Avanzado</div>
+        <div class="plan-price">$90.000 <span>/mes</span></div>
+        <p class="plan-desc">Para empresas de 15+ personas que buscan control total</p>
+        <ul class="plan-features">
+          <li>Empleados ilimitados</li>
+          <li>Viajes ilimitados</li>
+          <li>Panel avanzado con reportes</li>
+          <li>Reportes exportables en CSV</li>
+          <li>Conductores preferidos</li>
+          <li>Soporte prioritario 24/7</li>
+          <li>API de integración</li>
+          <li>Facturación automática</li>
+        </ul>
+        <a href="/company/register?plan=advanced" class="btn btn-primary btn-lg btn-block">Elegir Avanzado</a>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:48px;padding:40px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);">
+      <h2 style="font-size:1.3rem;margin-bottom:12px;">¿Por qué VAN para empresas?</h2>
+      <p style="color:var(--text-muted);max-width:600px;margin:0 auto;">
+        Simplifica la movilidad de tu equipo con una plataforma diseñada para empresas.
+        Controla gastos, asigna viajes corporativos y ofrece a tus empleados una experiencia
+        de transporte segura y confiable.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

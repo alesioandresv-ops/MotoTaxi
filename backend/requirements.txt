@@ -6,3 +6,5 @@ waitress
 Pillow>=10.0.0
 google-auth>=2.0.0
 requests>=2.28.0
+pytest>=8.0
+pytest-flask>=1.3

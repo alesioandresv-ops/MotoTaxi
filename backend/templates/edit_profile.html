@@ -1,84 +1,83 @@
 {% extends "base.html" %}
-{% block title %}Editar Perfil — MotoTaxi{% endblock %}
+{% block title %}Editar Perfil — VAN{% endblock %}
 {% block content %}
-<main class="auth-page">
+<div class="auth-page page-transition">
   <div class="auth-card wide">
     <div class="auth-logo">
-      <span class="icon">✏️</span>
-      <h1>Editar Perfil</h1>
-      <p>{{ user.name }}</p>
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Editar perfil</p>
     </div>
 
     <form class="form" method="post" action="/profile/edit" enctype="multipart/form-data">
-      <h3 class="form-section-title">Foto de perfil</h3>
-      <div class="input-group" style="text-align:center;">
-        <div class="profile-avatar-large" style="margin:0 auto 16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <h2 class="form-section-title">📸 Foto de perfil</h2>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;border:2px solid var(--border);flex-shrink:0;">
           {% if user.profile_picture %}
-          <img src="{{ user.profile_picture }}" alt="{{ user.name }}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;">
+          <img src="{{ user.profile_picture }}" style="width:100%;height:100%;object-fit:cover;">
           {% else %}
-          <div class="avatar-placeholder" style="width:120px;height:120px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:3rem;margin:0 auto;">{{ user.name[0]|upper }}</div>
+          <div style="width:100%;height:100%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;color:#fff;">{{ user.name[0]|upper }}</div>
           {% endif %}
         </div>
-        <input type="file" name="profile_picture" accept="image/*">
+        <div class="input-group" style="flex:1;">
+          <input type="file" name="profile_picture" accept="image/*">
+        </div>
       </div>
 
-      <h3 class="form-section-title">Información personal</h3>
-      <div class="input-row">
-        <div class="input-group">
-          <label>Nombre completo</label>
-          <input type="text" name="name" value="{{ user.name }}" required>
-        </div>
-        <div class="input-group">
-          <label>Teléfono</label>
-          <input type="tel" name="phone" value="{{ user.phone or '' }}">
-        </div>
+      <h2 class="form-section-title">👤 Datos personales</h2>
+      <div class="input-group">
+        <label>Nombre completo</label>
+        <input type="text" name="name" value="{{ user.name }}" required>
+      </div>
+      <div class="input-group">
+        <label>Teléfono</label>
+        <input type="tel" name="phone" value="{{ user.phone or '' }}">
       </div>
 
       {% if user_type == 'driver' %}
-      <h3 class="form-section-title">Información de la moto</h3>
+      <h2 class="form-section-title">{{ '🚗' if user.vehicle_type == 'auto' else '🛵' }} Datos del vehículo</h2>
+      {% if user.vehicle_type == 'auto' %}
       <div class="input-row">
-        <div class="input-group">
-          <label>Placa</label>
-          <input type="text" name="placa" value="{{ user.placa }}" required>
-        </div>
-        <div class="input-group">
-          <label>Marca</label>
-          <input type="text" name="moto_marca" value="{{ user.moto_marca }}" required>
-        </div>
+        <div class="input-group"><label>Placa</label><input type="text" name="placa_auto" value="{{ user.placa_auto or '' }}"></div>
+        <div class="input-group"><label>Marca</label><input type="text" name="auto_marca" value="{{ user.auto_marca or '' }}"></div>
       </div>
       <div class="input-row">
-        <div class="input-group">
-          <label>Modelo</label>
-          <input type="text" name="moto_modelo" value="{{ user.moto_modelo }}" required>
-        </div>
-        <div class="input-group">
-          <label>Color</label>
-          <input type="text" name="moto_color" value="{{ user.moto_color }}" required>
-        </div>
+        <div class="input-group"><label>Modelo</label><input type="text" name="auto_modelo" value="{{ user.auto_modelo or '' }}"></div>
+        <div class="input-group"><label>Color</label><input type="text" name="auto_color" value="{{ user.auto_color or '' }}"></div>
       </div>
-      <div class="input-group">
-        <label>Cilindrada</label>
-        <input type="text" name="moto_cilindrada" value="{{ user.moto_cilindrada }}" required>
+      <div class="input-group"><label>Año</label><input type="text" name="auto_año" value="{{ user.auto_año or '' }}"></div>
+      {% else %}
+      <div class="input-row">
+        <div class="input-group"><label>Placa</label><input type="text" name="placa" value="{{ user.placa }}"></div>
+        <div class="input-group"><label>Marca</label><input type="text" name="moto_marca" value="{{ user.moto_marca }}"></div>
       </div>
+      <div class="input-row">
+        <div class="input-group"><label>Modelo</label><input type="text" name="moto_modelo" value="{{ user.moto_modelo }}"></div>
+        <div class="input-group"><label>Color</label><input type="text" name="moto_color" value="{{ user.moto_color }}"></div>
+      </div>
+      <div class="input-group"><label>Cilindrada</label><input type="text" name="moto_cilindrada" value="{{ user.moto_cilindrada }}"></div>
+      {% endif %}
       {% endif %}
 
-      <h3 class="form-section-title">Cambiar contraseña <span style="font-weight:400;font-size:0.85rem;color:var(--text-muted);">(opcional)</span></h3>
+      <h2 class="form-section-title">🔒 Cambiar contraseña (opcional)</h2>
       <div class="input-row">
         <div class="input-group">
           <label>Contraseña actual</label>
-          <input type="password" name="current_password" placeholder="Dejar vacío si no cambias">
+          <input type="password" name="current_password" placeholder="Dejar vacío para no cambiar">
         </div>
         <div class="input-group">
           <label>Nueva contraseña</label>
-          <input type="password" name="new_password" placeholder="Mínimo 6 caracteres">
+          <input type="password" name="new_password" placeholder="Nueva contraseña">
         </div>
       </div>
 
-      <div class="input-row" style="margin-top:24px;">
+      <div style="display:flex;gap:12px;margin-top:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Guardar cambios</button>
         <a href="/profile" class="btn btn-ghost">Cancelar</a>
-        <button type="submit" class="btn btn-primary btn-lg" style="flex:1;">Guardar Cambios</button>
       </div>
     </form>
   </div>
-</main>
+</div>
 {% endblock %}

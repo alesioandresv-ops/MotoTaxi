@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Registro Empresa — VAN{% endblock %}
+{% block content %}
+<div class="auth-page page-transition">
+  <div class="auth-card wide">
+    <div class="auth-logo">
+      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <h1>VAN</h1>
+      <p>Registra tu empresa</p>
+    </div>
+
+    <form class="form" method="post" action="/company/register">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <h2 class="form-section-title">🏢 Datos de la empresa</h2>
+      <div class="input-row">
+        <div class="input-group">
+          <label>Nombre de la empresa</label>
+          <input type="text" name="name" required placeholder="Mi Empresa SRL">
+        </div>
+        <div class="input-group">
+          <label>Teléfono</label>
+          <input type="tel" name="phone" placeholder="+54 11 1234 5678">
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="input-group">
+          <label>Correo electrónico</label>
+          <input type="email" name="email" required placeholder="empresa@correo.com">
+        </div>
+        <div class="input-group">
+          <label>Contraseña</label>
+          <input type="password" name="password" required placeholder="••••••••" minlength="6">
+        </div>
+      </div>
+
+      <h2 class="form-section-title">📋 Seleccionar Plan</h2>
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <label style="flex:1;padding:20px;border:2px solid var(--border);border-radius:var(--radius-sm);text-align:center;cursor:pointer;transition:all var(--transition);" onclick="selectPlan('basic')" id="plan-basic">
+          <input type="radio" name="plan" value="basic" checked style="display:none;">
+          <div style="font-size:1.5rem;font-weight:800;color:var(--primary-light);">$60.000</div>
+          <div style="font-weight:700;margin-top:4px;">Básico</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Hasta 15 empleados</div>
+        </label>
+        <label style="flex:1;padding:20px;border:2px solid var(--border);border-radius:var(--radius-sm);text-align:center;cursor:pointer;transition:all var(--transition);" onclick="selectPlan('advanced')" id="plan-advanced">
+          <input type="radio" name="plan" value="advanced" style="display:none;">
+          <div style="font-size:1.5rem;font-weight:800;color:var(--primary-light);">$90.000</div>
+          <div style="font-weight:700;margin-top:4px;">Avanzado</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Empleados ilimitados</div>
+        </label>
+      </div>
+
+      <p style="font-size:0.85rem;color:var(--text-muted);text-align:center;margin-bottom:8px;">
+        Después del registro deberás elegir un método de pago para activar tu plan.
+      </p>
+
+      <button type="submit" class="btn btn-primary btn-lg btn-block">Registrar empresa</button>
+    </form>
+
+    <div class="links-row">
+      <a href="/company/login">¿Ya tienes cuenta? Inicia sesión</a>
+      <a href="/company">← Volver</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectPlan(plan) {
+  document.querySelectorAll('[id^="plan-"]').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.background = 'transparent';
+  });
+  var el = document.getElementById('plan-' + plan);
+  if (el) {
+    el.style.borderColor = 'var(--primary)';
+    el.style.background = 'rgba(124,58,237,0.08)';
+  }
+}
+
+(function() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var plan = urlParams.get('plan') || 'basic';
+  selectPlan(plan);
+  var radio = document.querySelector('input[name="plan"][value="' + plan + '"]');
+  if (radio) radio.checked = true;
+})();
+</script>
+{% endblock %}
