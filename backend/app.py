@@ -94,14 +94,6 @@ def create_app():
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    @app.before_request
-    def enforce_https():
-        if request.path == '/health':
-            return
-        if not app.debug and not request.is_secure and os.getenv('RAILWAY_ENVIRONMENT'):
-            url = request.url.replace('http://', 'https://', 1)
-            return redirect(url, 301)
-
     with app.app_context():
         from backend.migration import run_all as run_migrations
         run_migrations(app)
