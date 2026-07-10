@@ -1,6 +1,7 @@
 import os
 import sys
 import secrets
+from datetime import timedelta
 from flask import Flask, session, redirect, request
 from dotenv import load_dotenv
 
@@ -9,6 +10,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from backend.models import db
+from backend.extensions import limiter
 from backend.auth import auth_bp
 from backend.routes import main_bp
 from backend.company import company_bp
@@ -38,11 +40,19 @@ def create_app():
     if not app.config['SECRET_KEY']:
         raise RuntimeError("SECRET_KEY debe estar definida en .env para produccion")
 
+    # Session security config
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=4)
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        app.config['SESSION_COOKIE_SECURE'] = True
+
     if database_url:
         safe_url = database_url.replace(database_url.split('@')[0].split(':')[0] + ':' + database_url.split('@')[0].split(':')[1], '***:***')
         print("DB conectada:", safe_url.split('@')[1] if '@' in safe_url else 'ok')
 
     db.init_app(app)
+    limiter.init_app(app)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -81,15 +91,16 @@ def create_app():
 
     @app.context_processor
     def inject_csrf():
-        token = secrets.token_hex(32)
-        session['csrf_token'] = token
-        return {'csrf_token': token}
+        if 'csrf_token' not in session:
+            session['csrf_token'] = secrets.token_hex(32)
+        return {'csrf_token': session['csrf_token']}
 
     @app.after_request
     def add_security_headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://js.mercadopago.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'"
         if request.is_secure or os.getenv('RAILWAY_ENVIRONMENT'):
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response

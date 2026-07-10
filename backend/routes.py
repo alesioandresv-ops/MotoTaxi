@@ -7,7 +7,8 @@ import urllib.parse
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify
-from .models import db, User, Driver, Trip, Review
+from .models import db, User, Driver, Trip, Review, DriverPaymentMethod, PassengerPaymentConfig
+from .extensions import encrypt_details, decrypt_details
 
 main_bp = Blueprint('main', __name__)
 
@@ -38,9 +39,13 @@ def login_required(f):
 def sanitize_input(value):
     if value is None:
         return None
-    import re
     value = str(value).strip()
-    value = re.sub(r'<[^>]*>', '', value)
+    try:
+        import bleach
+        value = bleach.clean(value, tags=[], strip=True)
+    except ImportError:
+        import re
+        value = re.sub(r'<[^>]*>', '', value)
     return value[:500]
 
 # Tarifas — Moto
@@ -645,6 +650,7 @@ def _update_user_rating(user_id):
             user.rating_count = len(reviews)
 
 @main_bp.route('/api/driver/reviews/<int:driver_id>')
+@login_required
 def api_driver_reviews(driver_id):
     reviews = Review.query.filter_by(to_driver_id=driver_id).order_by(Review.created_at.desc()).limit(20).all()
     return jsonify({
@@ -658,6 +664,7 @@ def api_driver_reviews(driver_id):
     })
 
 @main_bp.route('/api/user/reviews/<int:user_id>')
+@login_required
 def api_user_reviews(user_id):
     reviews = Review.query.filter_by(to_user_id=user_id).order_by(Review.created_at.desc()).limit(20).all()
     return jsonify({
@@ -709,7 +716,8 @@ def api_geocode():
                 return jsonify({'lat': float(data[0]['lat']), 'lng': float(data[0]['lon']), 'display_name': data[0].get('display_name', '')})
         return jsonify({'error': 'No encontrado'}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Geocode error: {e}")
+        return jsonify({'error': 'Error de geocodificación'}), 500
 
 # ─── Driver Payment Methods API ───
 @main_bp.route('/api/driver/payment-methods', methods=['GET', 'POST'])
@@ -724,7 +732,7 @@ def api_driver_payment_methods():
         return jsonify({
             'methods': [{
                 'id': m.id, 'type': m.type,
-                'details': json.loads(m.details) if m.details else {},
+                'details': decrypt_details(m.details),
                 'is_active': m.is_active
             } for m in methods]
         })
@@ -739,7 +747,7 @@ def api_driver_payment_methods():
     method = DriverPaymentMethod(
         driver_id=session['driver_id'],
         type=pm_type,
-        details=json.dumps(details, ensure_ascii=False),
+        details=encrypt_details(details),
         is_active=True
     )
     db.session.add(method)
@@ -760,13 +768,14 @@ def api_delete_payment_method(method_id):
     return jsonify({'success': True})
 
 @main_bp.route('/api/driver/<int:driver_id>/payment-methods')
+@login_required
 def api_driver_public_payment_methods(driver_id):
     driver = Driver.query.get(driver_id)
     if not driver:
         return jsonify({'error': 'Conductor no encontrado'}), 404
     methods = DriverPaymentMethod.query.filter_by(driver_id=driver_id, is_active=True).all()
     return jsonify({
-        'methods': [{'type': m.type, 'details': json.loads(m.details) if m.details else {}} for m in methods]
+        'methods': [{'type': m.type, 'details': decrypt_details(m.details)} for m in methods]
     })
 
 # ─── Passenger Payment Configs API ───
@@ -782,7 +791,7 @@ def api_user_payment_methods():
         return jsonify({
             'methods': [{
                 'id': c.id, 'type': c.type,
-                'details': json.loads(c.details) if c.details else {},
+                'details': decrypt_details(c.details),
                 'is_default': c.is_default
             } for c in configs]
         })
@@ -797,7 +806,7 @@ def api_user_payment_methods():
     config = PassengerPaymentConfig(
         user_id=session['user_id'],
         type=pm_type,
-        details=json.dumps(details, ensure_ascii=False),
+        details=encrypt_details(details),
         is_default=not PassengerPaymentConfig.query.filter_by(user_id=session['user_id']).first()
     )
     db.session.add(config)

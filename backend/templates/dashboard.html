@@ -773,9 +773,12 @@ function fetchNearbyDrivers(lat, lng) {
 
       var html = '';
       data.drivers.forEach(function(d) {
-        var avatar = d.profile_picture
-          ? '<img src="' + d.profile_picture + '">'
-          : '<div class="avatar-placeholder-sm">' + d.name[0] + '</div>';
+        var avatar = '';
+      if (d.profile_picture && d.profile_picture.indexOf('/static/uploads/') === 0) {
+        avatar = '<img src="' + d.profile_picture + '">';
+      } else {
+        avatar = '<div class="avatar-placeholder-sm">' + d.name[0] + '</div>';
+      }
         var vemoji = d.vehicle_type === 'auto' ? '🚗' : '🛵';
         var vinfo = d.vehicle_info || {};
         var vdesc = vinfo.marca + ' ' + vinfo.modelo;

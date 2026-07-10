@@ -1,5 +1,6 @@
 import os
 import json
+import hmac
 from functools import wraps
 from datetime import datetime
 from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify
@@ -134,17 +135,22 @@ def create_preference():
             'failure': f'{get_base_url()}/company/payment/failure',
             'pending': f'{get_base_url()}/company/payment/pending',
         },
-        'auto_return': 'approved',
+        # 'auto_return': 'approved',  # comentado para desarrollo local
         'external_reference': str(company.id),
-        'notification_url': f'{get_base_url()}/company/payment/webhook',
+        # 'notification_url': f'{get_base_url()}/company/payment/webhook',  # comentado para desarrollo local
     }
 
     try:
         preference = sdk.preference().create(preference_data)
-        return jsonify({
-            'id': preference['response']['id'],
-            'init_point': preference['response']['init_point'],
-        })
+        if preference.get('status') == 201:
+            return jsonify({
+                'id': preference['response']['id'],
+                'init_point': preference['response']['init_point'],
+            })
+        else:
+            err = preference.get('response', {})
+            msg = err.get('message', 'Error desconocido de Mercado Pago')
+            return jsonify({'error': f'Mercado Pago: {msg}'}), 500
     except Exception as e:
         return jsonify({'error': f'Error al crear preferencia: {str(e)}'}), 500
 
@@ -183,22 +189,27 @@ def payment_webhook():
     action = data.get('action') or request.form.get('topic') or request.args.get('topic')
     mp_id = data.get('data', {}).get('id') or request.form.get('id')
 
+    if not mp_id:
+        return jsonify({'status': 'ok'})
+
     if action == 'payment.created' or (not action and mp_id):
         try:
             sdk = get_mp_sdk()
             if sdk:
                 payment_info = sdk.payment().get(mp_id)
-                if payment_info['response']['status'] == 'approved':
-                    company_id = int(payment_info['response']['external_reference'])
-                    comp = Company.query.get(company_id)
-                    if comp and comp.status == 'pending_payment':
-                        comp.status = 'active'
-                        comp.subscription_start = datetime.utcnow()
-                        comp.payment_method = 'mercadopago'
-                        comp.payment_reference = mp_id
-                        db.session.commit()
-        except Exception:
-            pass
+                resp = payment_info.get('response', {})
+                if resp.get('status') == 'approved':
+                    company_id = int(resp.get('external_reference', 0))
+                    if company_id:
+                        comp = Company.query.get(company_id)
+                        if comp and comp.status == 'pending_payment':
+                            comp.status = 'active'
+                            comp.subscription_start = datetime.utcnow()
+                            comp.payment_method = 'mercadopago'
+                            comp.payment_reference = mp_id
+                            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"Webhook error: {e}")
     return jsonify({'status': 'ok'})
 
 
@@ -379,7 +390,7 @@ def api_trips():
 def admin_activate(company_id):
     auth = request.headers.get('Authorization', '')
     admin_key = os.getenv('ADMIN_SECRET_KEY', '')
-    if not admin_key or auth != f'Bearer {admin_key}':
+    if not admin_key or not hmac.compare_digest(auth, f'Bearer {admin_key}'):
         return jsonify({'error': 'No autorizado'}), 401
     comp = Company.query.get(company_id)
     if not comp:

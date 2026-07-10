@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import uuid
 import random
 import string
 import smtplib
@@ -9,6 +11,8 @@ from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
 from .models import db, User, Driver, Trip, Review
 from werkzeug.security import generate_password_hash, check_password_hash
+from .routes import login_required
+from .extensions import limiter
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -42,11 +46,11 @@ def send_verification_email(email, code):
     except Exception:
         return False
 
-def save_base64_image(data, prefix):
+def save_base64_image(data):
     try:
         header, encoded = data.split(',', 1)
         ext = 'png' if 'png' in header else 'jpg'
-        filename = f'{prefix}.{ext}'
+        filename = f'{uuid.uuid4().hex}.{ext}'
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         with open(filepath, 'wb') as f:
             f.write(base64.b64decode(encoded))
@@ -57,10 +61,21 @@ def save_base64_image(data, prefix):
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        phone = request.form.get('phone')
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        phone = request.form.get('phone', '').strip()
+
+        if not name or len(name) < 2:
+            flash('El nombre debe tener al menos 2 caracteres', 'danger')
+            return redirect(url_for('auth.register'))
+        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+            flash('Correo electrónico inválido', 'danger')
+            return redirect(url_for('auth.register'))
+        if len(password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+            return redirect(url_for('auth.register'))
+
         if User.query.filter_by(email=email).first():
             flash('Correo electrónico ya registrado', 'warning')
             return redirect(url_for('auth.register'))
@@ -82,6 +97,7 @@ def register():
     return render_template('register.html')
 
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=["POST"])
 def verify_email():
     if 'verify_code' not in session:
         return redirect(url_for('auth.login'))
@@ -106,11 +122,21 @@ def verify_email():
 @auth_bp.route('/driver/register', methods=['GET', 'POST'])
 def driver_register():
     if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        phone = request.form.get('phone')
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        phone = request.form.get('phone', '').strip()
         vehicle_type = request.form.get('vehicle_type', 'moto')
+
+        if not name or len(name) < 2:
+            flash('El nombre debe tener al menos 2 caracteres', 'danger')
+            return redirect(url_for('auth.driver_register'))
+        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+            flash('Correo electrónico inválido', 'danger')
+            return redirect(url_for('auth.driver_register'))
+        if len(password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+            return redirect(url_for('auth.driver_register'))
 
         if Driver.query.filter_by(email=email).first():
             flash('Correo electrónico de conductor ya registrado', 'warning')
@@ -123,7 +149,7 @@ def driver_register():
         # Handle profile picture (required)
         camera_data = request.form.get('camera_data')
         if camera_data:
-            profile_picture = save_base64_image(camera_data, f'driver_{email.split("@")[0]}')
+            profile_picture = save_base64_image(camera_data)
         elif 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and allowed_file(file.filename):
@@ -211,6 +237,7 @@ def driver_register():
     return render_template('driver_register.html')
 
 @auth_bp.route('/verify-email-driver', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=["POST"])
 def verify_email_driver():
     if 'verify_code' not in session:
         return redirect(url_for('auth.login'))
@@ -233,6 +260,7 @@ def verify_email_driver():
     return render_template('verify_email.html', email=session.get('verify_email'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -244,6 +272,9 @@ def login():
             if smtp_configured and not user.email_verified:
                 flash('Debes verificar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.', 'warning')
                 return redirect(url_for('auth.login'))
+            csrf_token = session.get('csrf_token')
+            session.clear()
+            session['csrf_token'] = csrf_token
             session['user_id'] = user.id
             session['user_name'] = user.name
             flash('Bienvenido ' + user.name, 'success')
@@ -253,6 +284,9 @@ def login():
             if smtp_configured and not driver.email_verified:
                 flash('Debes verificar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.', 'warning')
                 return redirect(url_for('auth.login'))
+            csrf_token = session.get('csrf_token')
+            session.clear()
+            session['csrf_token'] = csrf_token
             session['driver_id'] = driver.id
             session['driver_name'] = driver.name
             flash('Bienvenido conductor ' + driver.name, 'success')
@@ -295,10 +329,17 @@ def edit_profile():
         return redirect(url_for('auth.login'))
 
     if request.method == 'POST':
-        name = request.form.get('name')
-        phone = request.form.get('phone')
+        name = request.form.get('name', '').strip()
+        phone = request.form.get('phone', '').strip()
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
+
+        if not name or len(name) < 2:
+            flash('El nombre debe tener al menos 2 caracteres', 'danger')
+            return redirect(url_for('auth.edit_profile'))
+        if new_password and len(new_password) < 6:
+            flash('La nueva contraseña debe tener al menos 6 caracteres', 'danger')
+            return redirect(url_for('auth.edit_profile'))
 
         if 'user_id' in session:
             user = User.query.get(session['user_id'])
@@ -373,15 +414,15 @@ def edit_profile():
 
 # ─── Camera upload endpoint ───
 @auth_bp.route('/api/upload-photo', methods=['POST'])
+@login_required
 def api_upload_photo():
     data = request.get_json(silent=True) or {}
     image_data = data.get('image')
-    prefix = data.get('prefix', 'photo')
 
     if not image_data:
         return jsonify({'error': 'No image data'}), 400
 
-    url = save_base64_image(image_data, prefix)
+    url = save_base64_image(image_data)
     if url:
         return jsonify({'success': True, 'url': url})
     return jsonify({'error': 'Failed to save image'}), 500

@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 os.environ['SECRET_KEY'] = 'test-secret-key'
 os.environ['FLASK_DEBUG'] = '0'
+os.environ['RATELIMIT_ENABLED'] = '0'
 
 @pytest.fixture
 def app():
