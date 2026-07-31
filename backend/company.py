@@ -1,12 +1,16 @@
 import os
 import json
 import hmac
+import re
+import secrets
 from functools import wraps
-from datetime import datetime
-from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify
+from datetime import datetime, timezone
+from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify, current_app
+from sqlalchemy import update
 from .models import db, User, Driver, Trip, Company, CompanyMember
 from werkzeug.security import generate_password_hash, check_password_hash
 from .routes import csrf_required
+from .extensions import limiter
 
 company_bp = Blueprint('company', __name__, url_prefix='/company')
 
@@ -23,11 +27,19 @@ def company_login_required(f):
             flash('Debes iniciar sesión como empresa', 'danger')
             return redirect(url_for('company.login'))
         company = Company.query.get(session['company_id'])
+        if company and company.status == 'active' and company.subscription_end:
+            if company.subscription_end < datetime.now(timezone.utc):
+                company.status = 'inactive'
+                db.session.commit()
+                flash('Tu suscripción expiró. Contacta al administrador.', 'danger')
+                session.clear()
+                return redirect(url_for('company.landing'))
         if company and company.status != 'active':
             if company.status == 'pending_payment':
                 return redirect(url_for('company.payment'))
             flash('Tu suscripción está inactiva. Contacta al administrador.', 'danger')
-            return redirect(url_for('company.logout'))
+            session.clear()
+            return redirect(url_for('company.landing'))
         return f(*args, **kwargs)
     return decorated
 
@@ -62,6 +74,16 @@ def register_post():
     password = request.form.get('password')
     phone = request.form.get('phone')
     plan = request.form.get('plan', 'basic')
+
+    if not password or len(password) < 8:
+        flash('La contraseña debe tener al menos 8 caracteres', 'danger')
+        return redirect(url_for('company.register_get'))
+    if not re.search(r'[A-Z]', password) or not re.search(r'[0-9]', password):
+        flash('La contraseña debe contener al menos una mayúscula y un número', 'danger')
+        return redirect(url_for('company.register_get'))
+    if not email or not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+        flash('Correo electrónico inválido', 'danger')
+        return redirect(url_for('company.register_get'))
 
     if Company.query.filter_by(email=email).first():
         flash('Correo electrónico ya registrado', 'warning')
@@ -161,14 +183,11 @@ def payment_success():
         return redirect(url_for('company.login'))
     payment_id = request.args.get('payment_id')
     comp = Company.query.get(session['company_id'])
-    if comp and comp.status == 'pending_payment':
-        comp.status = 'active'
-        comp.subscription_start = datetime.utcnow()
-        comp.payment_method = 'mercadopago'
+    if comp and comp.status == 'pending_payment' and payment_id:
         comp.payment_reference = payment_id
         db.session.commit()
-        flash('¡Pago exitoso! Tu plan ya está activo.', 'success')
-    return redirect(url_for('company.dashboard'))
+    flash('Pago recibido. Tu plan se activará automáticamente cuando se confirme.', 'success')
+    return redirect(url_for('company.payment_pending_review'))
 
 
 @company_bp.route('/payment/failure')
@@ -184,12 +203,28 @@ def payment_pending():
 
 
 @company_bp.route('/payment/webhook', methods=['POST'])
+@limiter.limit("30 per minute")
 def payment_webhook():
+    webhook_secret = os.getenv('MP_WEBHOOK_SECRET', '')
+    if webhook_secret:
+        x_signature = request.headers.get('x-signature', '')
+        raw_body = request.get_data(as_text=True)
+        expected = hmac.new(webhook_secret.encode(), raw_body.encode(), 'sha256').hexdigest()
+        if not hmac.compare_digest(x_signature, expected):
+            current_app.logger.warning("Webhook: firma HMAC inválida")
+            return jsonify({'status': 'ok'}), 403
+
     data = request.get_json(silent=True) or {}
     action = data.get('action') or request.form.get('topic') or request.args.get('topic')
     mp_id = data.get('data', {}).get('id') or request.form.get('id')
 
     if not mp_id:
+        return jsonify({'status': 'ok'})
+
+    try:
+        mp_id = int(mp_id)
+    except (ValueError, TypeError):
+        current_app.logger.warning(f"Webhook: invalid mp_id received: {mp_id}")
         return jsonify({'status': 'ok'})
 
     if action == 'payment.created' or (not action and mp_id):
@@ -200,15 +235,21 @@ def payment_webhook():
                 resp = payment_info.get('response', {})
                 if resp.get('status') == 'approved':
                     company_id = int(resp.get('external_reference', 0))
+                    transaction_amount = float(resp.get('transaction_amount', 0))
                     if company_id:
                         comp = Company.query.get(company_id)
                         if comp and comp.status == 'pending_payment':
+                            expected_price, _ = PLAN_PRICES.get(comp.plan, (60000, 'Básico'))
+                            if transaction_amount < expected_price * 0.9:
+                                current_app.logger.warning(f"Webhook: payment amount {transaction_amount} below expected {expected_price} for company {company_id}")
+                                return jsonify({'status': 'ok'})
                             comp.status = 'active'
-                            comp.subscription_start = datetime.utcnow()
+                            comp.subscription_start = datetime.now(timezone.utc)
                             comp.payment_method = 'mercadopago'
                             comp.payment_reference = mp_id
                             db.session.commit()
         except Exception as e:
+            db.session.rollback()
             current_app.logger.error(f"Webhook error: {e}")
     return jsonify({'status': 'ok'})
 
@@ -223,7 +264,7 @@ def confirm_transfer():
         return jsonify({'error': 'No válido'}), 400
 
     company.payment_method = 'transfer'
-    company.payment_reference = f'transfer_{datetime.utcnow().timestamp()}'
+    company.payment_reference = f'transfer_{datetime.now(timezone.utc).timestamp()}'
     db.session.commit()
     flash('Solicitud enviada. Te confirmaremos por correo cuando recibamos la transferencia.', 'success')
     return redirect(url_for('company.payment_pending_review'))
@@ -237,18 +278,22 @@ def payment_pending_review():
 
 
 @company_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
 
         company = Company.query.filter_by(email=email).first()
         if company and check_password_hash(company.password, password):
             if company.status == 'inactive':
                 flash('Tu suscripción está inactiva. Contacta al administrador.', 'danger')
                 return redirect(url_for('company.login'))
-            session['company_id'] = company.id
-            session['company_name'] = company.name
+            company_data = {'company_id': company.id, 'company_name': company.name}
+            session.clear()
+            session.update(company_data)
+            session['csrf_token'] = secrets.token_hex(32)
+            session.permanent = True
             if company.status == 'pending_payment':
                 return redirect(url_for('company.payment'))
             flash(f'Bienvenido {company.name}', 'success')
@@ -258,10 +303,10 @@ def login():
     return render_template('company/login.html')
 
 
-@company_bp.route('/logout')
+@company_bp.route('/logout', methods=['POST'])
+@csrf_required
 def logout():
-    session.pop('company_id', None)
-    session.pop('company_name', None)
+    session.clear()
     flash('Sesión cerrada', 'info')
     return redirect(url_for('company.landing'))
 
@@ -362,7 +407,7 @@ def api_trips():
     company = Company.query.get(session['company_id'])
     days = request.args.get('days', 30, type=int)
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     trips = Trip.query.filter(
         Trip.company_id == company.id,
@@ -390,12 +435,13 @@ def api_trips():
 def admin_activate(company_id):
     auth = request.headers.get('Authorization', '')
     admin_key = os.getenv('ADMIN_SECRET_KEY', '')
-    if not admin_key or not hmac.compare_digest(auth, f'Bearer {admin_key}'):
+    is_authorized = session.get('is_admin') or (admin_key and hmac.compare_digest(auth, f'Bearer {admin_key}'))
+    if not is_authorized:
         return jsonify({'error': 'No autorizado'}), 401
     comp = Company.query.get(company_id)
     if not comp:
         return jsonify({'error': 'Empresa no encontrada'}), 404
     comp.status = 'active'
-    comp.subscription_start = datetime.utcnow()
+    comp.subscription_start = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify({'success': True, 'name': comp.name})

@@ -1,5 +1,5 @@
 """
-Tests del ciclo de vida completo del viaje en MotoTaxi.
+Tests del ciclo de vida completo del viaje en VAN.
 Cada test es independiente (pytest crea app fresca por metodo).
 Ejecutar: python -m pytest tests/ -v
 """
@@ -70,6 +70,7 @@ def _request_trip(client, csrf):
         'pickup_lat': 19.43, 'pickup_lng': -99.13,
         'dropoff_lat': 19.44, 'dropoff_lng': -99.14,
         'distance_km': 5.0,
+        'payment_method': 'efectivo',
     }, follow_redirects=True)
 
 

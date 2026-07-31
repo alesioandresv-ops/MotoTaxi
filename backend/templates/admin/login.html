@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Acceso</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:#0f0f23; color:#e2e8f0; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .login-card { background:#1a1a2e; border:1px solid #1e293b; border-radius:12px; padding:32px 28px; width:100%; max-width:380px; }
+    .login-card h1 { font-size:1.3rem; font-weight:700; text-align:center; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:10px; }
+    .login-card h1 img { height:32px; }
+    .login-card p { text-align:center; color:#64748b; font-size:0.85rem; margin-bottom:24px; }
+    .form-group { margin-bottom:20px; }
+    .form-group label { display:block; font-size:0.8rem; font-weight:600; text-transform:uppercase; color:#94a3b8; margin-bottom:6px; }
+    .form-group input { width:100%; padding:12px 14px; border-radius:8px; border:1px solid #1e293b; background:#0f0f23; color:#e2e8f0; font-size:0.95rem; outline:none; transition:border-color .2s; }
+    .form-group input:focus { border-color:#6366f1; }
+    .btn-submit { width:100%; padding:12px; border:none; border-radius:8px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all .2s; }
+    .btn-submit:hover { transform:scale(1.02); box-shadow:0 0 14px rgba(99,102,241,0.35); }
+    .flash-msg { padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:0.85rem; font-weight:600; text-align:center; }
+    .flash-danger { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+    .flash-info { background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.3); }
+    .back-link { color:#818cf8; text-decoration:none; font-size:0.85rem; font-weight:600; margin-top:20px; }
+    .back-link:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1><img src="/static/logo.png" alt="VAN"> Admin</h1>
+    <p>Panel de administración</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash-msg flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-group">
+        <label for="password">Clave de administrador</label>
+        <input type="password" id="password" name="password" required autofocus>
+      </div>
+      <button type="submit" class="btn-submit">Entrar</button>
+    </form>
+
+    <div style="text-align:center;">
+      <a href="/" class="back-link">← Volver a VAN</a>
+    </div>
+  </div>
+</body>
+</html>

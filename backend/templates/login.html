@@ -4,7 +4,7 @@
 <div class="auth-page page-transition">
   <div class="auth-card">
     <div class="auth-logo">
-      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <img src="/static/logo.png" alt="VAN">
       <h1>VAN</h1>
       <p>Inicia sesión para continuar</p>
     </div>
@@ -19,6 +19,7 @@
         <label>Contraseña</label>
         <input type="password" name="password" required placeholder="••••••••">
       </div>
+      <a href="/forgot-password" style="display:block;text-align:right;font-size:0.85rem;color:var(--primary-light);margin-bottom:16px;text-decoration:none;">¿Olvidaste tu contraseña?</a>
       <button type="submit" class="btn btn-primary btn-lg btn-block">Iniciar sesión</button>
     </form>
 
@@ -27,25 +28,6 @@
       <a href="/driver/register">Regístrate como conductor</a>
       <hr class="divider">
       <a href="/company" class="muted">🏢 VAN para Empresas</a>
-    </div>
-
-    <div class="demo-section">
-      <p>Acceso rápido de demostración</p>
-      <div class="demo-buttons">
-        <form method="post" action="/login" id="demo-passenger-form" style="flex:1;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="email" value="pasajero@demo.com">
-          <input type="hidden" name="password" value="1234">
-        </form>
-        <button type="button" class="demo-btn passenger" onclick="document.getElementById('demo-passenger-form').submit()">👤 Demo Pasajero</button>
-
-        <form method="post" action="/login" id="demo-driver-form" style="flex:1;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="email" value="conductor@demo.com">
-          <input type="hidden" name="password" value="1234">
-        </form>
-        <button type="button" class="demo-btn driver" onclick="document.getElementById('demo-driver-form').submit()">🏍️ Demo Conductor</button>
-      </div>
     </div>
   </div>
 </div>

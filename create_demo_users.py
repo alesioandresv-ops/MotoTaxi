@@ -2,6 +2,7 @@
 """Script para crear usuarios de demostración en la base de datos"""
 import sys
 import os
+import secrets
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
@@ -15,26 +16,28 @@ def create_demo_users():
         passenger_exists = User.query.filter_by(email="pasajero@demo.com").first()
         driver_exists = Driver.query.filter_by(email="conductor@demo.com").first()
 
+        passenger_password = secrets.token_urlsafe(12)
+        driver_password = secrets.token_urlsafe(12)
+
         if not passenger_exists:
             passenger = User(
                 name="Juan Pérez",
                 email="pasajero@demo.com",
-                password=generate_password_hash("1234"),
+                password=generate_password_hash(passenger_password),
                 phone="3001234567",
                 email_verified=True,
                 rating_avg=4.8,
                 rating_count=12
             )
             db.session.add(passenger)
-            print("✅ Pasajero de demostración creado: pasajero@demo.com / 1234")
         else:
-            print("ℹ️ El pasajero de demostración ya existe")
+            passenger_password = '(ya existente)'
 
         if not driver_exists:
             driver = Driver(
                 name="Carlos López",
                 email="conductor@demo.com",
-                password=generate_password_hash("1234"),
+                password=generate_password_hash(driver_password),
                 phone="3009876543",
                 profile_picture="",
                 vehicle_type="moto",
@@ -56,19 +59,18 @@ def create_demo_users():
                 rating_count=25
             )
             db.session.add(driver)
-            print("✅ Conductor de demostración creado: conductor@demo.com / 1234")
         else:
-            print("ℹ️ El conductor de demostración ya existe")
+            driver_password = '(ya existente)'
 
         try:
             db.session.commit()
             print("\n✅ Usuarios de demostración configurados correctamente")
             print("\n📱 PASAJERO DEMO:")
             print("   Email: pasajero@demo.com")
-            print("   Contraseña: 1234")
+            print(f"   Contraseña: {passenger_password}")
             print("\n🏍️  CONDUCTOR DEMO:")
             print("   Email: conductor@demo.com")
-            print("   Contraseña: 1234")
+            print(f"   Contraseña: {driver_password}")
         except Exception as e:
             db.session.rollback()
             print(f"❌ Error al crear usuarios: {e}")

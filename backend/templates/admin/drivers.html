@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Conductores</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:#0f0f23; color:#e2e8f0; min-height:100vh; }
+    .admin-header { background:linear-gradient(135deg,#1a1a2e,#16213e); padding:20px 32px; border-bottom:1px solid #1e293b; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+    .admin-header h1 { font-size:1.3rem; font-weight:700; display:flex; align-items:center; gap:10px; }
+    .admin-header h1 img { height:32px; }
+    .admin-header .header-actions { display:flex; gap:8px; align-items:center; }
+    .admin-body { max-width:1100px; margin:0 auto; padding:24px 16px; }
+    .filters { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .filters a { padding:8px 16px; border-radius:20px; text-decoration:none; font-size:0.85rem; font-weight:600; border:1px solid #1e293b; color:#94a3b8; background:#0f0f23; transition:all .2s; }
+    .filters a:hover { border-color:#6366f1; color:#a5b4fc; }
+    .filters a.active { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border-color:transparent; }
+    .card { background:#1a1a2e; border:1px solid #1e293b; border-radius:12px; padding:20px; margin-bottom:16px; }
+    .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+    .card-header h3 { font-size:1rem; font-weight:700; }
+    .badge { padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:700; text-transform:uppercase; }
+    .badge-verified { background:rgba(34,197,94,0.15); color:#22c55e; }
+    .badge-pending { background:rgba(251,191,36,0.15); color:#fbbf24; }
+    .card-body { display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:0.9rem; }
+    .card-body .field { display:flex; flex-direction:column; gap:2px; }
+    .card-body .field-label { color:#64748b; font-size:0.75rem; text-transform:uppercase; font-weight:600; }
+    .card-body .field-value { color:#e2e8f0; }
+    .card-actions { display:flex; gap:8px; margin-top:16px; padding-top:12px; border-top:1px solid #1e293b; }
+    .btn { padding:8px 18px; border:none; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; transition:all .2s; }
+    .btn-verify { background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; }
+    .btn-verify:hover { transform:scale(1.03); box-shadow:0 0 12px rgba(34,197,94,0.3); }
+    .btn-unverify { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+    .btn-unverify:hover { transform:scale(1.03); box-shadow:0 0 12px rgba(245,158,11,0.3); }
+    .btn-logout { background:#1e293b; color:#94a3b8; text-decoration:none; display:inline-flex; align-items:center; padding:8px 16px; border-radius:20px; font-size:0.85rem; font-weight:600; border:1px solid #1e293b; transition:all .2s; cursor:pointer; }
+    .btn-logout:hover { background:#334155; color:#e2e8f0; border-color:#ef4444; }
+    .empty-state { text-align:center; padding:60px 20px; color:#64748b; }
+    .empty-state p { font-size:1.1rem; margin-bottom:8px; }
+    .flash-msg { padding:12px 20px; border-radius:8px; margin-bottom:16px; font-size:0.9rem; font-weight:600; }
+    .flash-success { background:rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.3); }
+    .flash-info { background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.3); }
+    .flash-danger { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+    .flash-warning { background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); }
+    .back-link { color:#818cf8; text-decoration:none; font-size:0.85rem; font-weight:600; }
+    .back-link:hover { text-decoration:underline; }
+    @media(max-width:640px) { .card-body { grid-template-columns:1fr; } .admin-header { padding:16px; } }
+  </style>
+</head>
+<body>
+  <div class="admin-header">
+    <h1><img src="/static/logo.png" alt="VAN"> Panel de Conductores</h1>
+    <div class="header-actions">
+      <a href="/" class="back-link">← Volver a VAN</a>
+      <form method="post" action="/admin/logout" style="display:inline;">
+        <button type="submit" class="btn-logout">Cerrar sesión admin</button>
+      </form>
+    </div>
+  </div>
+  <div class="admin-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash-msg flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="filters">
+      <a href="?status=pending" class="{{ 'active' if status_filter == 'pending' }}">Pendientes</a>
+      <a href="?status=verified" class="{{ 'active' if status_filter == 'verified' }}">Verificados</a>
+      <a href="?status=all" class="{{ 'active' if status_filter == 'all' }}">Todos</a>
+    </div>
+
+    {% if not drivers %}
+      <div class="empty-state">
+        <p>No hay conductores {% if status_filter != 'all' %}con estado "{{ status_filter }}"{% endif %}</p>
+      </div>
+    {% endif %}
+
+    {% for d in drivers %}
+    <div class="card">
+      <div class="card-header">
+        <h3>#{{ d.id }} — {{ d.name }}</h3>
+        {% if d.is_verified %}
+          <span class="badge badge-verified">Verificado</span>
+        {% else %}
+          <span class="badge badge-pending">Pendiente</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Email</span>
+          <span class="field-value">{{ d.email }}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Teléfono</span>
+          <span class="field-value">{{ d.phone }}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Tipo de vehículo</span>
+          <span class="field-value">{{ d.vehicle_type }}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Licencia</span>
+          <span class="field-value">{{ d.carnet_conducir }}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Placa</span>
+          <span class="field-value">{{ d.placa }}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Registro</span>
+          <span class="field-value">{{ d.created_at }}</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        {% if not d.is_verified %}
+        <form method="post" action="/admin/drivers/{{ d.id }}/verify" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="verify">
+          <button type="submit" class="btn btn-verify" onclick="return confirm('¿Verificar conductor {{ d.name }}?')">Verificar</button>
+        </form>
+        {% else %}
+        <form method="post" action="/admin/drivers/{{ d.id }}/verify" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="unverify">
+          <button type="submit" class="btn btn-unverify" onclick="return confirm('¿Desverificar conductor {{ d.name }}?')">Desverificar</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

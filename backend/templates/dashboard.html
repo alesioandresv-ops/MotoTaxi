@@ -2,7 +2,9 @@
 {% block title %}Panel — VAN{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>.driver-marker{background:none!important;border:none!important;font-size:24px;line-height:1;}.leaflet-container{width:100%;height:100%;}</style>
+<style>.driver-marker{background:none!important;border:none!important;font-size:24px;line-height:1;}.leaflet-container{width:100%;height:100%;}
+.favorite-chip{padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.85rem;font-weight:600;cursor:pointer;transition:all var(--transition);}
+.favorite-chip:hover{border-color:var(--primary);background:rgba(124,58,237,.1);color:var(--primary-light);}</style>
 {% endblock %}
 {% block content %}
 <div class="dashboard page-transition">
@@ -44,6 +46,11 @@
           <div class="account-rating">⭐ {{ driver.rating_avg if driver else 5.0 }}</div>
         </div>
         <div class="account-menu">
+          <button class="account-menu-item" onclick="window.location.href='/historial'">
+            <span class="ami-icon">📋</span>
+            <span class="ami-text">Historial</span>
+            <span class="ami-arrow">›</span>
+          </button>
           <button class="account-menu-item" onclick="showHelp()">
             <span class="ami-icon">🛟</span>
             <span class="ami-text">Ayuda</span>
@@ -70,19 +77,137 @@
 
     <!-- ─── Wallet Modal ─── -->
     <div id="wallet-modal" class="modal-overlay" style="display:none;">
-      <div class="modal-content">
+      <div class="modal-content" style="max-width:480px;">
         <div class="modal-header">
-          <h3>💳 Billetera</h3>
+          <h3>💰 Billetera</h3>
           <button class="btn-ghost-sm" onclick="closeModal('wallet-modal')">✕</button>
         </div>
         <div class="modal-body">
-          <p style="color:var(--text-muted);margin-bottom:16px;">Configura tus métodos de pago</p>
-          <div id="user-payment-list"></div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="addPaymentMethod('card')">💳 Tarjeta</button>
-            <button class="btn btn-outline btn-sm" onclick="addPaymentMethod('mercadopago')">🧩 Mercado Pago</button>
-            <button class="btn btn-outline btn-sm" onclick="addPaymentMethod('transfer')">🏦 Transferencia</button>
+          <div class="wallet-balance-box">
+            <p class="wallet-balance-label">Saldo disponible</p>
+            <p id="wallet-balance" class="wallet-balance-amount">$0,00</p>
+            <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="openModal('topup-modal')">+ Cargar saldo</button>
           </div>
+          <p class="wallet-section-title">Últimos movimientos</p>
+          <div id="wallet-transactions" class="wallet-transactions"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Top-Up Modal ─── -->
+    <div id="topup-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>💰 Cargar saldo</h3>
+          <button class="btn-ghost-sm" onclick="closeModal('topup-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="input-group" style="margin-bottom:20px;">
+            <label>Monto a cargar ($)</label>
+            <input type="number" id="topup-amount" min="100" max="500000" value="1000" placeholder="1000" class="topup-amount-input">
+          </div>
+
+          <div style="display:grid;gap:12px;">
+            <button class="topup-method-btn" onclick="topupMP()">
+              <span class="topup-method-icon">💙</span>
+              <div class="topup-method-info">
+                <strong>MercadoPago</strong>
+                <small>Tarjeta, débito, efectivo o billetera virtual</small>
+              </div>
+              <span class="topup-method-badge fast">Inmediato</span>
+            </button>
+
+            <button class="topup-method-btn" onclick="topupCVU()">
+              <span class="topup-method-icon">🏦</span>
+              <div class="topup-method-info">
+                <strong>Transferencia a CVU MP</strong>
+                <small>Desde cualquier banco o billetera</small>
+              </div>
+              <span class="topup-method-badge medium">~1 min</span>
+            </button>
+
+            <button class="topup-method-btn" onclick="topupVoucher()">
+              <span class="topup-method-icon">📄</span>
+              <div class="topup-method-info">
+                <strong>Transferencia + Comprobante</strong>
+                <small>Subí el comprobante de tu transferencia</small>
+              </div>
+              <span class="topup-method-badge slow">24-48hs</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CVU Modal ─── -->
+    <div id="cvu-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>🏦 Transferencia a CVU</h3>
+          <button class="btn-ghost-sm" onclick="closeModal('cvu-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:var(--text-muted);margin-bottom:16px;">Transfí a esta cuenta desde cualquier banco o billetera:</p>
+          <div class="cvu-info-box">
+            <p class="cvu-label">CVU</p>
+            <p id="cvu-value" class="cvu-mono">---</p>
+            <p class="cvu-label">Alias</p>
+            <p id="cvu-alias" style="font-weight:700;">---</p>
+            <p class="cvu-label">Titular</p>
+            <p id="cvu-holder" style="font-weight:600;">---</p>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Monto: <strong id="cvu-amount-display">$0</strong></p>
+          <p style="font-size:0.8rem;color:var(--warning);margin-bottom:16px;">Se acredita automáticamente tras la transferencia.</p>
+          <button class="btn btn-primary btn-block" onclick="confirmCVU()">Ya transferí — confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Voucher Modal ─── -->
+    <div id="voucher-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>📄 Transferencia + Comprobante</h3>
+          <button class="btn-ghost-sm" onclick="closeModal('voucher-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:var(--text-muted);margin-bottom:12px;">Datos de cuenta VAN:</p>
+          <div id="bank-info-box" class="cvu-info-box">
+            <p>Cargando...</p>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Monto: <strong id="voucher-amount-display">$0</strong></p>
+          <div class="input-group" style="margin-bottom:12px;">
+            <label>Comprobante (imagen o PDF)</label>
+            <input type="file" id="voucher-file" accept="image/*,.pdf" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);">
+          </div>
+          <button class="btn btn-primary btn-block" onclick="submitVoucher()">Enviar comprobante</button>
+          <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;margin-top:8px;">Confirmación en 24-48hs hábiles</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Driver Wallet Modal ─── -->
+    <div id="driver-wallet-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>💰 Billetera (Conductor)</h3>
+          <button class="btn-ghost-sm" onclick="closeModal('driver-wallet-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="wallet-balance-box">
+            <p class="wallet-balance-label">Tu saldo</p>
+            <p id="driver-wallet-balance" class="wallet-balance-amount">$0,00</p>
+          </div>
+          <div id="driver-qr-section" style="text-align:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:16px;">
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">Cobrar por billetera — Mostrá este QR al pasajero</p>
+            <div id="driver-qr-container" class="driver-qr-box">
+              <div id="driver-qr-code"></div>
+              <p id="driver-qr-info" class="driver-qr-id"></p>
+            </div>
+            <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="refreshDriverQR()">Actualizar QR</button>
+          </div>
+          <p class="wallet-section-title">Últimos movimientos</p>
+          <div id="driver-wallet-transactions" class="wallet-transactions"></div>
         </div>
       </div>
     </div>
@@ -141,7 +266,7 @@
             {% endif %}
           </span>
           {% if current_trip.status == 'accepted' %}
-          <span class="eta-badge" id="eta-badge">🛵 Calculando ETA...</span>
+          <span class="eta-badge" id="eta-badge">🛵 Calculando tiempo estimado...</span>
           {% endif %}
         </div>
         <div class="card-sub" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">
@@ -161,6 +286,9 @@
                 <p><strong>📍 Origen:</strong> {{ current_trip.pickup_address }}</p>
                 <p><strong>🎯 Destino:</strong> {{ current_trip.dropoff_address }}</p>
                 <p><strong>💰 Tarifa:</strong> <span style="color:var(--primary-light);font-weight:700;">${{ "%.2f"|format(current_trip.fare) }}</span></p>
+                {% if current_trip.payment_method %}
+                <p><strong>💳 Pago:</strong> <span class="payment-badge payment-{{ current_trip.payment_method }}">{{ current_trip.payment_method|payment_label }}</span></p>
+                {% endif %}
                 {% if current_trip.distance_km %}
                 <p><strong>📏 Distancia:</strong> {{ "%.1f"|format(current_trip.distance_km) }} km</p>
                 {% endif %}
@@ -216,6 +344,11 @@
       </div>
       {% endif %}
       {% else %}
+      <!-- ─── Favorites section ─── -->
+      <div id="favorites-section" style="margin-bottom:16px;display:none;">
+        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">⭐ Rutas frecuentes</div>
+        <div id="favorites-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
       <!-- ─── Request form + Nearby drivers ─── -->
       <div class="dashboard-grid-2">
         <div class="card card-highlight">
@@ -250,6 +383,16 @@
             <div id="fare-estimate" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);text-align:center;">
               <span style="color:var(--text-muted);">Tarifa estimada:</span>
               <span style="font-size:1.3rem;font-weight:700;color:var(--primary-light);" id="fare-amount">$0.00</span>
+            </div>
+            <div class="input-group">
+              <label>💳 Método de pago</label>
+              <select name="payment_method" id="payment-method-select" required>
+                <option value="efectivo">💵 Efectivo</option>
+                <option value="mercadopago">💙 MercadoPago</option>
+                <option value="transferencia">🏦 Transferencia</option>
+                <option value="tarjeta">💳 Tarjeta</option>
+                <option value="billetera">💰 Billetera (saldo: ${{ "%.2f"|format(driver.balance if driver else 0) }})</option>
+              </select>
             </div>
             <button type="submit" class="btn btn-primary btn-lg btn-block">Solicitar Viaje</button>
           </form>
@@ -287,6 +430,9 @@
               <p><strong>{{ '🚗' if trip.vehicle_type == 'auto' else '🛵' }} {{ trip.pickup_address }}</strong></p>
               <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
               <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%d/%m/%Y %H:%M') if trip.requested_at else '' }}</p>
+              {% if trip.payment_method %}
+              <span class="payment-badge payment-{{ trip.payment_method }}" style="font-size:0.7rem;">{{ trip.payment_method|payment_label }}</span>
+              {% endif %}
             </div>
             <div class="trip-item-right">
               <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
@@ -350,6 +496,9 @@
                 <p><strong>{{ '🚗' if active_trip.vehicle_type == 'auto' else '🛵' }} {{ active_trip.pickup_address }}</strong></p>
                 <p style="color:var(--text-muted);">→ {{ active_trip.dropoff_address }}</p>
                 <p><strong>💰 ${{ "%.2f"|format(active_trip.fare) }}</strong></p>
+                {% if active_trip.payment_method %}
+                <p><strong>💳 Pago:</strong> <span class="payment-badge payment-{{ active_trip.payment_method }}">{{ active_trip.payment_method|payment_label }}</span></p>
+                {% endif %}
                 {% if active_trip.distance_km %}
                 <p><strong>📏 {{ "%.1f"|format(active_trip.distance_km) }} km</strong></p>
                 {% endif %}
@@ -388,6 +537,9 @@
               <p><strong>{{ '🚗' if trip.vehicle_type == 'auto' else '🛵' }} {{ trip.pickup_address }}</strong></p>
               <p style="color:var(--text-muted);">→ {{ trip.dropoff_address }}</p>
               <p style="font-size:0.8rem;color:var(--text-muted);">{{ trip.requested_at.strftime('%H:%M') if trip.requested_at else '' }}</p>
+              {% if trip.payment_method %}
+              <span class="payment-badge payment-{{ trip.payment_method }}" style="font-size:0.7rem;">{{ trip.payment_method|payment_label }}</span>
+              {% endif %}
               {% if trip.distance_km %}
               <p style="font-size:0.8rem;color:var(--primary-light);">📏 {{ "%.1f"|format(trip.distance_km) }} km</p>
               {% endif %}
@@ -439,6 +591,10 @@
               <span class="stat-value">⭐ {{ driver.rating_avg }}</span>
               <span class="stat-label">Calificación</span>
             </div>
+            <div class="stat-item" onclick="showDriverWallet()" style="cursor:pointer;">
+              <span class="stat-value" style="color:var(--success);">$<span id="driver-balance-display">{{ "%.2f"|format(driver.balance if driver else 0) }}</span></span>
+              <span class="stat-label">💰 Billetera</span>
+            </div>
           </div>
           {% if completed_trips %}
           <div style="margin-top:16px;">
@@ -458,6 +614,41 @@
             </div>
           </div>
           {% endif %}
+
+          <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+            <h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">💳 Métodos de pago aceptados</h4>
+            <div id="driver-payment-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;">
+              <label class="payment-checkbox" data-type="efectivo">
+                <input type="checkbox" name="accepted_payment" value="efectivo" checked> 💵 Efectivo
+              </label>
+              <label class="payment-checkbox" data-type="mercadopago">
+                <input type="checkbox" name="accepted_payment" value="mercadopago"> 💙 MercadoPago
+              </label>
+              <label class="payment-checkbox" data-type="transferencia">
+                <input type="checkbox" name="accepted_payment" value="transferencia"> 🏦 Transferencia
+              </label>
+              <label class="payment-checkbox" data-type="tarjeta">
+                <input type="checkbox" name="accepted_payment" value="tarjeta"> 💳 Tarjeta
+              </label>
+              <label class="payment-checkbox" data-type="billetera">
+                <input type="checkbox" name="accepted_payment" value="billetera"> 💰 Billetera
+              </label>
+            </div>
+            <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="saveAcceptedPayments()">Guardar</button>
+
+            <div style="margin-top:12px;">
+              <h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">📷 QR MercadoPago</h4>
+              <div id="qr-preview" style="margin-bottom:8px;">
+                {% if driver.mercadopago_qr %}
+                <img src="{{ driver.mercadopago_qr }}" style="max-width:120px;border-radius:var(--radius-sm);border:1px solid var(--border);">
+                {% else %}
+                <p style="font-size:0.8rem;color:var(--text-muted);">Sin QR configurado</p>
+                {% endif %}
+              </div>
+              <input type="file" id="qr-upload-input" accept="image/*" style="font-size:0.8rem;">
+              <button class="btn btn-outline btn-sm" style="margin-top:4px;" onclick="uploadMercadoPagoQR()">Subir QR</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -469,7 +660,7 @@
 <div id="welcome-overlay" class="welcome-overlay" style="display:none;">
   <div id="welcome-slide" class="welcome-slide">
     <div class="welcome-logo">
-      <img src="/static/logo.png" alt="VAN" style="height:64px;">
+      <img src="/static/logo.png" alt="VAN">
     </div>
     <h2 class="welcome-title">Te damos la bienvenida a VAN</h2>
     <p class="welcome-sub">¿Necesitas ayuda en tu primer viaje?</p>
@@ -540,12 +731,37 @@
     <input type="hidden" id="review-rating" value="0">
   </div>
 </div>
+
+<!-- ═══════ MercadoPago QR Modal ═══════ -->
+<div id="mp-qr-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:380px;text-align:center;">
+    <div class="modal-header" style="justify-content:center;">
+      <h3>💙 Pago con MercadoPago</h3>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+      <p style="color:var(--text-muted);">Escaneá el QR para pagar</p>
+      <div id="mp-qr-image-container" style="padding:12px;background:#fff;border-radius:var(--radius-sm);">
+        <div style="color:#333;">QR del conductor</div>
+      </div>
+      <div style="font-size:1.5rem;font-weight:800;color:var(--primary-light);" id="mp-qr-fare">$0.00</div>
+      <button class="btn btn-primary btn-block" onclick="document.getElementById('mp-qr-modal').style.display='none'">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 var CSRF_TOKEN = window.CSRF_TOKEN || '{{ csrf_token }}';
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
 
 function apiFetch(url, options) {
   options = options || {};
@@ -659,9 +875,78 @@ function showWallet() {
   toggleAccountPanel();
   setTimeout(function() {
     document.getElementById('wallet-modal').style.display = 'flex';
-    loadUserPaymentMethods();
+    loadWalletBalance();
+    loadWalletTransactions();
   }, 300);
 }
+
+{% if user_type == 'driver' %}
+function showDriverWallet() {
+  openModal('driver-wallet-modal');
+  loadDriverWalletBalance();
+  loadDriverWalletTransactions();
+  refreshDriverQR();
+}
+
+function loadDriverWalletBalance() {
+  apiFetch('/api/driver/wallet/balance')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.balance !== undefined) {
+        var el = document.getElementById('driver-wallet-balance');
+        el.textContent = '$' + data.balance.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+        var disp = document.getElementById('driver-balance-display');
+        if (disp) disp.textContent = data.balance.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+      }
+    })
+    .catch(function() {});
+}
+
+function loadDriverWalletTransactions() {
+  apiFetch('/api/driver/wallet/transactions?limit=20')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var box = document.getElementById('driver-wallet-transactions');
+      if (!data.transactions || data.transactions.length === 0) {
+        box.innerHTML = '<div class="wallet-empty">Sin movimientos aún</div>';
+        return;
+      }
+      var html = '';
+      data.transactions.forEach(function(t) {
+        var sign = t.amount > 0 ? '+' : '-';
+        var cls = t.amount > 0 ? 'credit' : 'debit';
+        var date = new Date(t.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'short'});
+        html += '<div class="wallet-tx-item">' +
+          '<div>' +
+            '<div class="wallet-tx-info">' + escapeHtml(t.description || t.type) + '</div>' +
+            '<div class="wallet-tx-date">' + date + '</div>' +
+          '</div>' +
+          '<div class="wallet-tx-amount ' + cls + '">' + sign + '$' + Math.abs(t.amount).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</div>' +
+        '</div>';
+      });
+      box.innerHTML = html;
+    })
+    .catch(function() {});
+}
+
+function refreshDriverQR() {
+  var container = document.getElementById('driver-qr-code');
+  var info = document.getElementById('driver-qr-info');
+  {% if driver %}
+  var payload = JSON.stringify({t:'pay',d:{{ driver.id }},n:{{ driver.name|tojson }}});
+  container.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(container, {text: payload, width: 180, height: 180, colorDark: '#1a1a2e', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M});
+  } else {
+    var cdn = document.createElement('script');
+    cdn.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+    cdn.onload = function() { new QRCode(container, {text: payload, width: 180, height: 180, colorDark: '#1a1a2e', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M}); };
+    document.head.appendChild(cdn);
+  }
+  info.textContent = 'ID: ' + {{ driver.id }} + ' | ' + {{ driver.name|tojson }};
+  {% endif %}
+}
+{% endif %}
 
 function showSecurity() {
   toggleAccountPanel();
@@ -678,51 +963,154 @@ function showPrivacy() {
   showToast('Política de privacidad — próximamente', 'info');
 }
 
+function openModal(id) {
+  document.getElementById(id).style.display = 'flex';
+}
+
 function closeModal(id) {
   document.getElementById(id).style.display = 'none';
 }
 
-// ─── Payment Methods ───
-function loadUserPaymentMethods() {
-  apiFetch('/api/user/payment-methods')
+// ─── Wallet ───
+function loadWalletBalance() {
+  apiFetch('/api/wallet/balance')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var list = document.getElementById('user-payment-list');
-      if (!data.methods || data.methods.length === 0) {
-        list.innerHTML = '<div class="empty-state" style="padding:24px;"><p style="color:var(--text-muted);">Sin métodos de pago configurados</p></div>';
-        return;
+      if (data.balance !== undefined) {
+        var el = document.getElementById('wallet-balance');
+        el.textContent = '$' + data.balance.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+        el.style.color = data.balance > 0 ? 'var(--success)' : 'var(--text-muted)';
       }
-      var icons = { card: '💳', mercadopago: '🧩', transfer: '🏦' };
-      var labels = { card: 'Tarjeta', mercadopago: 'Mercado Pago', transfer: 'Transferencia' };
-      var html = '';
-      data.methods.forEach(function(m) {
-        html += '<div class="payment-item" style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;">' +
-          '<span>' + (icons[m.type] || '💳') + ' ' + (labels[m.type] || m.type) + '</span>' +
-          (m.is_default ? '<span class="badge badge-completed" style="font-size:0.7rem;">Predeterminado</span>' : '') +
-        '</div>';
-      });
-      list.innerHTML = html;
     })
     .catch(function() {});
 }
 
-function addPaymentMethod(type) {
-  var labels = { card: 'Tarjeta', mercadopago: 'Mercado Pago', transfer: 'Transferencia' };
-  var value = prompt('Ingresa los datos de ' + labels[type] + ':');
-  if (!value) return;
-  apiFetch('/api/user/payment-methods', {
+function loadWalletTransactions() {
+  apiFetch('/api/wallet/transactions?limit=20')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var box = document.getElementById('wallet-transactions');
+      if (!data.transactions || data.transactions.length === 0) {
+        box.innerHTML = '<div class="wallet-empty">Sin movimientos aún</div>';
+        return;
+      }
+      var html = '';
+      data.transactions.forEach(function(t) {
+        var sign = t.amount > 0 ? '+' : '-';
+        var cls = t.amount > 0 ? 'credit' : 'debit';
+        var date = new Date(t.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'short'});
+        html += '<div class="wallet-tx-item">' +
+          '<div>' +
+            '<div class="wallet-tx-info">' + escapeHtml(t.description || t.type) + '</div>' +
+            '<div class="wallet-tx-date">' + date + '</div>' +
+          '</div>' +
+          '<div class="wallet-tx-amount ' + cls + '">' + sign + '$' + Math.abs(t.amount).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</div>' +
+        '</div>';
+      });
+      box.innerHTML = html;
+    })
+    .catch(function() {});
+}
+
+function topupMP() {
+  var amount = parseInt(document.getElementById('topup-amount').value);
+  if (!amount || amount < 100) { showToast('Monto mínimo $100', 'warning'); return; }
+  if (amount > 500000) { showToast('Monto máximo $500.000', 'warning'); return; }
+  apiFetch('/api/wallet/topup', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ type: type, details: { value: value } })
+    body: JSON.stringify({amount: amount, method: 'mercadopago'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.init_point) {
+      window.location.href = data.init_point;
+    } else if (data.error) {
+      showToast(data.error, 'danger');
+    }
+  })
+  .catch(function() { showToast('Error al iniciar pago', 'danger'); });
+}
+
+function topupCVU() {
+  var amount = parseInt(document.getElementById('topup-amount').value);
+  if (!amount || amount < 100) { showToast('Monto mínimo $100', 'warning'); return; }
+  closeModal('topup-modal');
+  openModal('cvu-modal');
+  document.getElementById('cvu-amount-display').textContent = '$' + amount.toLocaleString('es-AR');
+  apiFetch('/api/wallet/cvu-info')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('cvu-value').textContent = data.cvu || '---';
+      document.getElementById('cvu-alias').textContent = data.alias || '---';
+      document.getElementById('cvu-holder').textContent = data.holder || '---';
+    })
+    .catch(function() {});
+}
+
+function confirmCVU() {
+  var amount = parseInt(document.getElementById('topup-amount').value);
+  apiFetch('/api/wallet/topup/cvu', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({amount: amount})
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast(labels[type] + ' agregado ✔️', 'success');
-      loadUserPaymentMethods();
+      closeModal('cvu-modal');
+      showToast('Carga registrada — se acredita automáticamente', 'success');
+      loadWalletBalance();
+    } else {
+      showToast(data.error || 'Error', 'danger');
     }
   })
-  .catch(function() {});
+  .catch(function() { showToast('Error', 'danger'); });
+}
+
+function topupVoucher() {
+  var amount = parseInt(document.getElementById('topup-amount').value);
+  if (!amount || amount < 100) { showToast('Monto mínimo $100', 'warning'); return; }
+  closeModal('topup-modal');
+  openModal('voucher-modal');
+  document.getElementById('voucher-amount-display').textContent = '$' + amount.toLocaleString('es-AR');
+  apiFetch('/api/wallet/bank-info')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var html = '<p><strong>Banco:</strong> ' + escapeHtml(data.bank_name || '---') + '</p>' +
+          '<p><strong>Titular:</strong> ' + escapeHtml(data.holder || '---') + '</p>' +
+          '<p><strong>CUIT:</strong> ' + escapeHtml(data.cuit || '---') + '</p>' +
+          '<p><strong>CBU:</strong> <span style="font-family:monospace;">' + escapeHtml(data.account_number || '---') + '</span></p>' +
+          '<p><strong>Alias:</strong> ' + escapeHtml(data.alias || '---') + '</p>';
+      document.getElementById('bank-info-box').innerHTML = html;
+    })
+    .catch(function() {
+      document.getElementById('bank-info-box').innerHTML = '<p>Error al cargar datos bancarios</p>';
+    });
+}
+
+function submitVoucher() {
+  var fileInput = document.getElementById('voucher-file');
+  var amount = parseInt(document.getElementById('topup-amount').value);
+  if (!fileInput.files || !fileInput.files[0]) {
+    showToast('Seleccioná un comprobante', 'warning');
+    return;
+  }
+  var fd = new FormData();
+  fd.append('amount', amount);
+  fd.append('voucher', fileInput.files[0]);
+  apiFetch('/api/wallet/topup/voucher', { method: 'POST', body: fd })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      closeModal('voucher-modal');
+      showToast('Comprobante enviado — confirmación en 24-48hs', 'success');
+      loadWalletBalance();
+    } else {
+      showToast(data.error || 'Error', 'danger');
+    }
+  })
+  .catch(function() { showToast('Error al enviar', 'danger'); });
 }
 
 // ─── Geolocation ───
@@ -740,6 +1128,8 @@ function startGeolocation() {
     {% if user_type == 'passenger' and not current_trip %}
     fetchNearbyDrivers(userLat, userLng);
     initMiniMap(userLat, userLng);
+    loadFavorites();
+    prefIllFromParams();
     {% endif %}
 
     {% if user_type == 'driver' %}
@@ -774,27 +1164,78 @@ function fetchNearbyDrivers(lat, lng) {
       var html = '';
       data.drivers.forEach(function(d) {
         var avatar = '';
-      if (d.profile_picture && d.profile_picture.indexOf('/static/uploads/') === 0) {
-        avatar = '<img src="' + d.profile_picture + '">';
-      } else {
-        avatar = '<div class="avatar-placeholder-sm">' + d.name[0] + '</div>';
-      }
+        var safeName = escapeHtml(d.name);
+        var safePicture = escapeHtml(d.profile_picture);
+        if (d.profile_picture && d.profile_picture.indexOf('/static/uploads/') === 0) {
+          avatar = '<img src="' + safePicture + '">';
+        } else {
+          avatar = '<div class="avatar-placeholder-sm">' + (safeName.charAt(0) || '') + '</div>';
+        }
         var vemoji = d.vehicle_type === 'auto' ? '🚗' : '🛵';
         var vinfo = d.vehicle_info || {};
-        var vdesc = vinfo.marca + ' ' + vinfo.modelo;
+        var vdesc = escapeHtml(vinfo.marca) + ' ' + escapeHtml(vinfo.modelo);
+        var payIcons = (d.accepted_payments || ['efectivo']).map(function(p) {
+          var icons = {efectivo:'💵',mercadopago:'💙',transferencia:'🏦',tarjeta:'💳'};
+          return icons[p] || '💳';
+        }).join(' ');
         html += '<div class="driver-card">' +
           '<div class="driver-card-avatar">' + avatar + '</div>' +
           '<div class="driver-card-info">' +
-            '<h4>' + d.name + '</h4>' +
-            '<div class="rating-sm">⭐ ' + d.rating_avg + '</div>' +
+            '<h4>' + safeName + '</h4>' +
+            '<div class="rating-sm">⭐ ' + escapeHtml(d.rating_avg) + '</div>' +
             '<div class="moto-sm">' + vemoji + ' ' + vdesc + '</div>' +
+            '<div class="payment-icons-sm">' + payIcons + '</div>' +
           '</div>' +
-          '<div class="distance">' + d.distance_km.toFixed(1) + ' km</div>' +
+          '<div class="distance">' + parseFloat(d.distance_km).toFixed(1) + ' km</div>' +
         '</div>';
       });
       listEl.innerHTML = html;
     })
     .catch(function() {});
+}
+
+// ─── Favorites ───
+function loadFavorites() {
+  var section = document.getElementById('favorites-section');
+  var container = document.getElementById('favorites-chips');
+  if (!section || !container) return;
+  apiFetch('/api/favorites')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.favorites || data.favorites.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      var html = '';
+      data.favorites.forEach(function(f) {
+        html += '<button class="favorite-chip" data-pickup="' + escapeAttr(f.pickup_address) + '" data-dropoff="' + escapeAttr(f.dropoff_address) + '" onclick="fillFromFavorite(this)">⭐ ' + escapeHtml(f.name) + '</button>';
+      });
+      container.innerHTML = html;
+    })
+    .catch(function() { section.style.display = 'none'; });
+}
+
+function fillFromFavorite(btn) {
+  document.getElementById('pickup-address').value = btn.dataset.pickup;
+  document.getElementById('dropoff-address').value = btn.dataset.dropoff;
+  updateFareEstimate();
+}
+
+function escapeAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function prefIllFromParams() {
+  var params = new URLSearchParams(window.location.search);
+  var pickup = params.get('pickup');
+  var dropoff = params.get('dropoff');
+  var vehicle = params.get('vehicle');
+  if (pickup) document.getElementById('pickup-address').value = pickup;
+  if (dropoff) document.getElementById('dropoff-address').value = dropoff;
+  if (vehicle === 'auto') selectVtype('auto');
+  if (pickup || dropoff) updateFareEstimate();
 }
 
 // ─── Driver Online Toggle ───
@@ -846,9 +1287,71 @@ function updateDriverLocation(lat, lng) {
 // ─── Logout ───
 function logout() {
   if (confirm('¿Cerrar sesión?')) {
-    window.location.href = '/logout';
+    fetch('/logout', {
+      method: 'POST',
+      headers: {'X-CSRF-Token': CSRF_TOKEN}
+    }).then(function() { window.location.href = '/'; });
   }
 }
+
+// ─── Driver Accepted Payments ───
+{% if user_type == 'driver' %}
+(function loadDriverPayments() {
+  apiFetch('/api/driver/accepted-payments')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.accepted_payments) {
+        var checks = document.querySelectorAll('#driver-payment-checkboxes input[type="checkbox"]');
+        checks.forEach(function(cb) {
+          cb.checked = data.accepted_payments.indexOf(cb.value) !== -1;
+        });
+      }
+    })
+    .catch(function() {});
+})();
+
+function saveAcceptedPayments() {
+  var checks = document.querySelectorAll('#driver-payment-checkboxes input[type="checkbox"]');
+  var selected = [];
+  checks.forEach(function(cb) {
+    if (cb.checked) selected.push(cb.value);
+  });
+  if (selected.length === 0) { showToast('Selecciona al menos un método', 'warning'); return; }
+  apiFetch('/api/driver/accepted-payments', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({accepted_payments: selected})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) showToast('Métodos de pago actualizados', 'success');
+  })
+  .catch(function() { showToast('Error al guardar', 'danger'); });
+}
+
+function uploadMercadoPagoQR() {
+  var input = document.getElementById('qr-upload-input');
+  if (!input.files || !input.files[0]) { showToast('Selecciona una imagen', 'warning'); return; }
+  var fd = new FormData();
+  fd.append('qr_image', input.files[0]);
+  fetch('/api/driver/mercadopago-qr', {
+    method: 'POST',
+    headers: {'X-CSRF-Token': CSRF_TOKEN},
+    body: fd
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('QR subido correctamente', 'success');
+      var preview = document.getElementById('qr-preview');
+      preview.innerHTML = '<img src="' + escapeHtml(data.url) + '" style="max-width:120px;border-radius:var(--radius-sm);border:1px solid var(--border);">';
+    } else {
+      showToast('Error: ' + (data.error || 'desconocido'), 'danger');
+    }
+  })
+  .catch(function() { showToast('Error al subir QR', 'danger'); });
+}
+{% endif %}
 
 {% if user_type == 'passenger' and current_trip %}
 // ─── Passenger Map with Driver Location (Leaflet) ───
@@ -1061,7 +1564,11 @@ function cancelTrip(tripId) {
       var _label = {requested:'Solicitado',accepted:'Aceptado',ongoing:'En curso',completed:'Completado',cancelled:'Cancelado'}[data.status] || data.status;
       if (data.status !== '{{ current_trip.status }}') {
         showToast('¡Tu viaje cambió a: ' + _label + '!', 'success');
-        setTimeout(function() { window.location.reload(); }, 1500);
+        if (data.status === 'completed' && data.payment_method === 'mercadopago' && data.driver) {
+          var qrUrl = data.driver.mercadopago_qr || (data.driver.vehicle_info && data.driver.vehicle_info.mercadopago_qr);
+          setTimeout(function() { showMPQRModal(qrUrl, data.fare); }, 1500);
+        }
+        setTimeout(function() { window.location.reload(); }, 3000);
       }
       if (data.driver && data.driver.lat) {
         updateDriverOnPassengerMap(data.driver.lat, data.driver.lng);
@@ -1195,6 +1702,19 @@ function submitReview() {
   .catch(function() {
     showToast('Error al enviar calificación', 'danger');
   });
+}
+
+// ─── MercadoPago QR Modal ───
+function showMPQRModal(qrUrl, fare) {
+  var container = document.getElementById('mp-qr-image-container');
+  if (qrUrl) {
+    var safeUrl = escapeHtml(qrUrl);
+    container.innerHTML = '<img src="' + safeUrl + '" style="max-width:220px;max-height:220px;border-radius:8px;">';
+  } else {
+    container.innerHTML = '<p style="color:#666;padding:20px;">El conductor no tiene QR configurado. Paga en efectivo o coordina con el conductor.</p>';
+  }
+  document.getElementById('mp-qr-fare').textContent = '$' + (fare || '0.00');
+  document.getElementById('mp-qr-modal').style.display = 'flex';
 }
 
 // ─── Passenger Map (active trip, Leaflet) ───

@@ -15,7 +15,7 @@ def get_fernet():
 def encrypt_details(details_dict):
     f = get_fernet()
     if not f:
-        return json.dumps(details_dict, ensure_ascii=False)
+        raise RuntimeError("ENCRYPTION_KEY debe estar definida en .env para guardar datos de pago")
     encrypted = f.encrypt(json.dumps(details_dict, ensure_ascii=False).encode())
     return 'enc:' + encrypted.decode()
 

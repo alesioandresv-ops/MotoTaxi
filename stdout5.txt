@@ -1,6 +1,0 @@
-DB conectada: 127.0.0.1:3306/mototaxi
-[Migracion] Verificando columnas/tablas...
-[Migracion] db.create_all()...
-[Migracion] OK
- * Serving Flask app 'app'
- * Debug mode: off

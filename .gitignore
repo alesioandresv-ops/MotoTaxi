@@ -1,5 +1,11 @@
+backend/.env
 .env
+*.env
+!backend/.env.example
+!backend/.env.example.*
+backend/.venv/
 .venv/
+backend/__pycache__/
 __pycache__/
 *.pyc
 *.pyo

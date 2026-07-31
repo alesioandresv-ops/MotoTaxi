@@ -4,7 +4,7 @@
 <div class="auth-page page-transition">
   <div class="auth-card wide">
     <div class="auth-logo">
-      <img src="/static/logo.png" alt="VAN" style="height:48px;margin-bottom:8px;">
+      <img src="/static/logo.png" alt="VAN">
       <h1>VAN</h1>
       <p>Regístrate como conductor</p>
     </div>
@@ -21,8 +21,7 @@
           <button type="button" class="btn btn-outline btn-sm" onclick="openCamera()">📸 Tomar foto</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('profile_picture').click()">📁 Subir archivo</button>
         </div>
-        <input type="file" id="profile_picture" name="profile_picture" accept="image/*" style="display:none;" onchange="previewFile(event)">
-        <input type="hidden" name="camera_data" id="camera_data">
+        <input type="file" id="profile_picture" name="profile_picture" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="previewFile(event)">
         <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;">La foto es obligatoria para registrarse como conductor</p>
       </div>
 
@@ -205,8 +204,8 @@
 <div id="camera-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content" style="max-width:500px;">
     <h3 style="margin-bottom:16px;">📸 Tomar foto</h3>
-    <video id="camera-feed" autoplay playsinline style="width:100%;border-radius:var(--radius-sm);background:#000;"></video>
-    <canvas id="camera-canvas" style="display:none;"></canvas>
+    <video id="cameraPreview" autoplay playsinline style="width:100%;border-radius:var(--radius-sm);background:#000;min-height:300px;object-fit:cover;"></video>
+    <canvas id="cameraCanvas" style="display:none;"></canvas>
     <div style="display:flex;gap:12px;margin-top:16px;">
       <button type="button" class="btn btn-primary" onclick="capturePhoto()" style="flex:1;">Capturar</button>
       <button type="button" class="btn btn-ghost" onclick="closeCamera()">Cancelar</button>
@@ -216,6 +215,7 @@
 
 <script>
 var cameraStream = null;
+var cameraSupported = true;
 
 function selectVehicle(type) {
   document.querySelectorAll('.vehicle-type-option').forEach(function(el) {
@@ -231,48 +231,14 @@ function selectVehicle(type) {
   document.getElementById('auto-fields').style.display = type === 'auto' ? 'block' : 'none';
 }
 
-function openCamera() {
-  var modal = document.getElementById('camera-modal');
-  modal.style.display = 'flex';
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-    .then(function(stream) {
-      cameraStream = stream;
-      document.getElementById('camera-feed').srcObject = stream;
-    })
-    .catch(function(err) {
-      showToast('Error al abrir cámara: ' + err.message, 'danger');
-      modal.style.display = 'none';
-    });
-}
-
-function closeCamera() {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(function(t) { t.stop(); });
-    cameraStream = null;
-  }
-  document.getElementById('camera-modal').style.display = 'none';
-}
-
-function capturePhoto() {
-  var video = document.getElementById('camera-feed');
-  var canvas = document.getElementById('camera-canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  var ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
-  var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-  document.getElementById('camera_data').value = dataUrl;
-
-  var preview = document.getElementById('photo-preview');
-  preview.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;">';
-
-  closeCamera();
-  showToast('Foto capturada ✅', 'success');
-}
-
 function previewFile(event) {
   var file = event.target.files[0];
   if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('La imagen debe pesar menos de 2MB', 'danger');
+    event.target.value = '';
+    return;
+  }
   var reader = new FileReader();
   reader.onload = function(e) {
     var preview = document.getElementById('photo-preview');
@@ -281,9 +247,86 @@ function previewFile(event) {
   reader.readAsDataURL(file);
 }
 
+// ─── Cámara ───
+var video = document.getElementById('cameraPreview');
+var canvas = document.getElementById('cameraCanvas');
+var photoInput = document.getElementById('profile_picture');
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+    .then(function(s) {
+      cameraStream = s;
+      video.srcObject = s;
+      video.play();
+    })
+    .catch(function(err) {
+      alert("No se pudo acceder a la cámara: " + err.message + ". Usa 'Subir archivo'");
+      closeCamera();
+    });
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(function(track) { track.stop(); });
+    cameraStream = null;
+  }
+  video.srcObject = null;
+}
+
+function closeCamera() {
+  stopCamera();
+  document.getElementById('camera-modal').style.display = 'none';
+}
+
+function openCamera() {
+  document.getElementById('camera-modal').style.display = 'flex';
+  startCamera();
+}
+
+function capturePhoto() {
+  var MAX = 800;
+  var w = video.videoWidth;
+  var h = video.videoHeight;
+  if (!w || !h) {
+    alert("La cámara no está lista. Intenta de nuevo.");
+    return;
+  }
+  if (w > MAX || h > MAX) {
+    var ratio = Math.min(MAX / w, MAX / h);
+    w = Math.round(w * ratio);
+    h = Math.round(h * ratio);
+  }
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+
+  canvas.toBlob(function(blob) {
+    if (blob.size > 2 * 1024 * 1024) {
+      showToast('La imagen capturada es demasiado grande', 'danger');
+      return;
+    }
+    var file = new File([blob], 'camara.jpg', { type: 'image/jpeg' });
+    var dt = new DataTransfer();
+    dt.items.add(file);
+    photoInput.files = dt.files;
+    photoInput.dispatchEvent(new Event('change'));
+
+    var preview = document.getElementById('photo-preview');
+    preview.innerHTML = '<img src="' + URL.createObjectURL(file) + '" style="width:100%;height:100%;object-fit:cover;">';
+
+    closeCamera();
+    showToast('Foto capturada ✅', 'success');
+  }, 'image/jpeg', 0.9);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var motoOpt = document.getElementById('vtype-moto');
   if (motoOpt) motoOpt.style.borderColor = 'var(--primary)';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    cameraSupported = false;
+    var btn = document.querySelector('[onclick="openCamera()"]');
+    if (btn) btn.style.display = 'none';
+  }
 });
 </script>
 {% endblock %}

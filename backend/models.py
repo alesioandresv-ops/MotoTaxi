@@ -12,6 +12,7 @@ class User(db.Model):
     phone = db.Column(db.String(30))
     profile_picture = db.Column(db.String(255), nullable=True)
     email_verified = db.Column(db.Boolean, default=False)
+    balance = db.Column(db.Numeric(12, 2), default=0.0)
     rating_avg = db.Column(db.Float, default=5.0)
     rating_count = db.Column(db.Integer, default=0)
     accepted_guidelines = db.Column(db.Boolean, default=False)
@@ -34,6 +35,7 @@ class Driver(db.Model):
     rating_avg = db.Column(db.Float, default=5.0)
     rating_count = db.Column(db.Integer, default=0)
     accepted_guidelines = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=False)
     vehicle_type = db.Column(db.String(10), nullable=False, default='moto')
     # Moto fields
     placa = db.Column(db.String(50), nullable=False)
@@ -58,6 +60,9 @@ class Driver(db.Model):
     tipo_seguro_auto = db.Column(db.String(120), nullable=True)
     carnet_conducir_auto = db.Column(db.String(120), nullable=True)
     ultimo_servicio_auto = db.Column(db.String(120), nullable=True)
+    accepted_payments = db.Column(db.String(500), nullable=True, default='["efectivo"]')
+    mercadopago_qr = db.Column(db.String(500), nullable=True)
+    balance = db.Column(db.Numeric(12, 2), default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Trip(db.Model):
@@ -75,12 +80,13 @@ class Trip(db.Model):
     dropoff_lng = db.Column(db.Float, nullable=True)
     distance_km = db.Column(db.Float, nullable=True)
     duration_min = db.Column(db.Integer, nullable=True)
-    fare = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(50), nullable=False, default='requested')
-    requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+    fare = db.Column(db.Numeric(12, 2), nullable=False)
+    status = db.Column(db.String(50), nullable=False, default='requested', index=True)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     cancelled_by = db.Column(db.String(20), nullable=True)
+    payment_method = db.Column(db.String(50), nullable=True)
 
     passenger = db.relationship('User', backref='trips')
     driver = db.relationship('Driver', backref='assigned_trips')
@@ -148,3 +154,47 @@ class PassengerPaymentConfig(db.Model):
     is_default = db.Column(db.Boolean, default=False)
 
     user = db.relationship('User', backref='payment_configs')
+
+class FavoriteAddress(db.Model):
+    __tablename__ = 'favorite_addresses'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    pickup_address = db.Column(db.String(255), nullable=False)
+    dropoff_address = db.Column(db.String(255), nullable=False)
+    count = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='favorite_addresses')
+
+class WalletTransaction(db.Model):
+    __tablename__ = 'wallet_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    driver_id = db.Column(db.Integer, db.ForeignKey('drivers.id'), nullable=True, index=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    type = db.Column(db.String(30), nullable=False)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trips.id'), nullable=True)
+    reference = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(20), default='completed')
+    description = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='wallet_transactions')
+    driver = db.relationship('Driver', backref='wallet_transactions')
+    trip = db.relationship('Trip', backref='wallet_transactions')
+
+class TopUpRequest(db.Model):
+    __tablename__ = 'topup_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    method = db.Column(db.String(30), nullable=False)
+    voucher_url = db.Column(db.String(500), nullable=True)
+    mp_payment_id = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(20), default='pending')
+    admin_note = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    confirmed_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref='topup_requests')

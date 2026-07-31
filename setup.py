@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Setup inicial de MotoTaxi: verifica conexión y migra DB.
+Setup inicial de VAN: verifica conexión y migra DB.
 Uso: python setup.py
 """
 import os
@@ -16,7 +16,7 @@ if not db_url or 'root:contraseña' in db_url:
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-print("=== Setup MotoTaxi ===\n")
+print("=== Setup VAN ===\n")
 
 try:
     from backend.migration import run_migration
@@ -27,5 +27,5 @@ except Exception as e:
     print("\nVerifica:")
     print("1. MySQL está corriendo")
     print("2. DATABASE_URL en .env es correcta")
-    print("3. Base de datos 'mototaxi' existe")
+    print("3. Base de datos 'van' existe")
     sys.exit(1)

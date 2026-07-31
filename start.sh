@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "=== MotoTaxi Startup ==="
+echo "=== VAN Startup ==="
 PORT="${PORT:-5000}"
 echo "PORT=$PORT"
-echo "DATABASE_URL=${DATABASE_URL:0:50}..."
+echo "DATABASE_URL=***"
 
 echo "--- Running migrate.py ---"
 python migrate.py || echo "⚠️  migrate.py falló, continúa de todos modos"

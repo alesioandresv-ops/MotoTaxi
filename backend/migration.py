@@ -7,6 +7,7 @@ COLUMNAS = {
     'users': {
         'profile_picture': 'VARCHAR(255) NULL',
         'email_verified': 'TINYINT(1) DEFAULT 0',
+        'balance': 'DECIMAL(12,2) DEFAULT 0.0',
         'rating_avg': 'FLOAT DEFAULT 5.0',
         'rating_count': 'INTEGER DEFAULT 0',
         'accepted_guidelines': 'TINYINT(1) DEFAULT 0',
@@ -22,6 +23,7 @@ COLUMNAS = {
         'rating_avg': 'FLOAT DEFAULT 5.0',
         'rating_count': 'INTEGER DEFAULT 0',
         'accepted_guidelines': 'TINYINT(1) DEFAULT 0',
+        'is_verified': 'TINYINT(1) DEFAULT 0',
         'vehicle_type': 'VARCHAR(10) DEFAULT "moto"',
         'placa_auto': 'VARCHAR(50) NULL',
         'auto_marca': 'VARCHAR(120) NULL',
@@ -33,6 +35,9 @@ COLUMNAS = {
         'tipo_seguro_auto': 'VARCHAR(120) NULL',
         'carnet_conducir_auto': 'VARCHAR(120) NULL',
         'ultimo_servicio_auto': 'VARCHAR(120) NULL',
+        'accepted_payments': 'VARCHAR(500) DEFAULT \'["efectivo"]\'',
+        'mercadopago_qr': 'VARCHAR(500) NULL',
+        'balance': 'DECIMAL(12,2) DEFAULT 0.0',
     },
     'trips': {
         'pickup_lat': 'FLOAT NULL',
@@ -46,6 +51,32 @@ COLUMNAS = {
         'cancelled_by': 'VARCHAR(20) NULL',
         'vehicle_type': 'VARCHAR(10) DEFAULT "moto"',
         'company_id': 'INTEGER NULL',
+        'payment_method': 'VARCHAR(50) NULL',
+        'fare': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
+    },
+    'wallet_transactions': {
+        'amount': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
+    },
+    'topup_requests': {
+        'amount': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
+    },
+}
+
+COLUMN_MODIFY = {
+    'users': {
+        'balance': 'DECIMAL(12,2) DEFAULT 0.0',
+    },
+    'drivers': {
+        'balance': 'DECIMAL(12,2) DEFAULT 0.0',
+    },
+    'trips': {
+        'fare': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
+    },
+    'wallet_transactions': {
+        'amount': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
+    },
+    'topup_requests': {
+        'amount': 'DECIMAL(12,2) NOT NULL DEFAULT 0.0',
     },
 }
 
@@ -118,6 +149,38 @@ TABLAS = {
             FOREIGN KEY (user_id) REFERENCES users(id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    'wallet_transactions': """
+        CREATE TABLE IF NOT EXISTS wallet_transactions (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            user_id INTEGER NULL,
+            driver_id INTEGER NULL,
+            amount DECIMAL(12,2) NOT NULL DEFAULT 0.0,
+            type VARCHAR(30) NOT NULL,
+            trip_id INTEGER NULL,
+            reference VARCHAR(200) NULL,
+            status VARCHAR(20) DEFAULT 'completed',
+            description VARCHAR(200) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (driver_id) REFERENCES drivers(id),
+            FOREIGN KEY (trip_id) REFERENCES trips(id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    'topup_requests': """
+        CREATE TABLE IF NOT EXISTS topup_requests (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            user_id INTEGER NOT NULL,
+            amount DECIMAL(12,2) NOT NULL DEFAULT 0.0,
+            method VARCHAR(30) NOT NULL,
+            voucher_url VARCHAR(500) NULL,
+            mp_payment_id VARCHAR(100) NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            admin_note VARCHAR(200) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            confirmed_at DATETIME NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 }
 
 
@@ -167,8 +230,25 @@ def run_migration(url):
         existing = {r[0] for r in cursor.fetchall()}
         for col, typ in cols.items():
             if col not in existing:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
-                print(f"  [+] {table}.{col}")
+                try:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+                    print(f"  [+] {table}.{col}")
+                except Exception as col_err:
+                    print(f"  [WARN] {table}.{col}: {col_err}")
+
+    for table, cols in COLUMN_MODIFY.items():
+        cursor.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+            (db_name, table)
+        )
+        existing = {r[0] for r in cursor.fetchall()}
+        for col, typ in cols.items():
+            if col in existing:
+                try:
+                    cursor.execute(f"ALTER TABLE {table} MODIFY COLUMN {col} {typ}")
+                    print(f"  [~] {table}.{col} -> {typ}")
+                except Exception as col_err:
+                    print(f"  [WARN] {table}.{col} modify: {col_err}")
 
     for table, ddl in TABLAS.items():
         cursor.execute(

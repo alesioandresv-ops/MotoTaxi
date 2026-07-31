@@ -163,7 +163,10 @@ function apiFetch(url, options) {
 
 function logout() {
   if (confirm('¿Cerrar sesión?')) {
-    window.location.href = '/company/logout';
+    fetch('/company/logout', {
+      method: 'POST',
+      headers: {'X-CSRF-Token': CSRF_TOKEN}
+    }).then(function() { window.location.href = '/company/'; });
   }
 }
 
@@ -177,7 +180,7 @@ function closeModal(id) {
 
 function inviteMember() {
   var email = document.getElementById('invite-email').value.trim();
-  if (!email) { showToast('Ingresa un email', 'warning'); return; }
+  if (!email) { showToast('Ingresa un correo', 'warning'); return; }
 
   apiFetch('/company/api/invite', {
     method: 'POST',
