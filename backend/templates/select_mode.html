@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Elige tu modo — VAN{% endblock %}
+{% block content %}
+<div class="auth-page page-transition">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/static/logo.png" alt="VAN">
+      <h1>Hola, {{ user.name }} 👋</h1>
+      <p>Tu cuenta tiene rol de pasajero y conductor.<br>¿Con qué modo quieres entrar hoy?</p>
+    </div>
+
+    <form class="form" method="post" action="/select-mode">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if 'driver' in modes %}
+      <button type="submit" name="mode" value="driver" class="btn btn-lg btn-block" style="background:var(--success);color:#fff;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        🏍️ Conducir hoy
+      </button>
+      {% endif %}
+      {% if 'passenger' in modes %}
+      <button type="submit" name="mode" value="passenger" class="btn btn-primary btn-lg btn-block" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        🚕 Viajar como pasajero
+      </button>
+      {% endif %}
+    </form>
+
+    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-top:14px;">
+      Puedes cambiar de modo cuando quieras desde el panel.
+    </p>
+  </div>
+</div>
+{% endblock %}

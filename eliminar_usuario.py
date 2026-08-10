@@ -1,148 +1,119 @@
-import pymysql
+#!/usr/bin/env python
+"""Elimina un usuario (o empresa) con sus datos relacionados. Esquema unificado.
+
+Usa SQLAlchemy (DATABASE_URL de backend/.env) y respeta los FKs del modelo.
+Advertencia: operación destructiva, pide confirmación.
+"""
 import sys
-from dotenv import load_dotenv
 import os
 
-load_dotenv('backend/.env')
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, PROJECT_ROOT)
 
-database = os.getenv('MYSQL_DB', 'van')
-host = os.getenv('MYSQL_HOST', '127.0.0.1')
+from dotenv import load_dotenv
+from backend.models import (
+    db, User, Company, Trip, Review, WalletTransaction, TopUpRequest,
+    PassengerPaymentConfig, FavoriteAddress, CompanyMember,
+)
+from backend.app import app
 
+load_dotenv(os.path.join(PROJECT_ROOT, 'backend', '.env'))
+
+database = (os.getenv('DATABASE_URL') or '').split('?')[0]
 if 'prod' in database.lower() or 'production' in database.lower():
     print(f'ABORT: refusing to modify database "{database}" (looks like production)')
     sys.exit(1)
 
-conn = pymysql.connect(
-    host=host,
-    user=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-    database=database
-)
-cur = conn.cursor()
 
-# ─── Listar usuarios ───
-cur.execute('SELECT id, name, email, created_at FROM users')
-pasajeros = cur.fetchall()
-print('=== PASAJEROS ===')
-for r in pasajeros:
-    print(f'  [{r[0]}] {r[1]} - {r[2]} ({r[3]})')
+def list_records():
+    users = User.query.order_by(User.id).all()
+    print('=== USUARIOS ===')
+    for u in users:
+        role = u.role or '?'
+        extra = ''
+        if u.driver_profile is not None:
+            veh = u.driver_profile.active_vehicle
+            extra = f" | CONDUCTOR {veh.type if veh else '?'} {veh.placa if veh else ''}"
+        print(f'  [{u.id}] {u.name} - {u.email} [{role}]{extra} ({u.created_at})')
+    companies = Company.query.order_by(Company.id).all()
+    print('\n=== EMPRESAS ===')
+    for c in companies:
+        print(f'  [{c.id}] {c.name} - {c.email} [{c.status}] ({c.created_at})')
 
-cur.execute('SELECT id, name, email, created_at FROM drivers')
-conductores = cur.fetchall()
-print('\n=== CONDUCTORES ===')
-for r in conductores:
-    print(f'  [{r[0]}] {r[1]} - {r[2]} ({r[3]})')
 
-cur.execute('SELECT id, name, email, status, created_at FROM companies')
-empresas = cur.fetchall()
-print('\n=== EMPRESAS ===')
-for r in empresas:
-    print(f'  [{r[0]}] {r[1]} - {r[2]} [{r[3]}] ({r[4]})')
+def delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        print(f'Usuario ID {user_id} no encontrado.')
+        return False
 
-if not pasajeros and not conductores and not empresas:
-    print('\nNo hay registros para eliminar.')
-    conn.close()
-    sys.exit(0)
+    profile = user.driver_profile
+    veh_type = f" {profile.active_vehicle.type} {profile.active_vehicle.placa}" if profile and profile.active_vehicle else ''
+    print(f'\n{"="*40}')
+    print(f'Usuario: {user.name} <{user.email}> [{user.role}]{veh_type}')
+    print(f'{"="*40}')
+    confirm = input(f'\n¿Eliminar usuario ID {user_id} y TODOS sus datos relacionados? (s/n): ').strip().lower()
+    if confirm != 's':
+        print('Cancelado.')
+        return False
 
-# ─── Seleccionar tipo ───
-print('\n¿Qué quieres eliminar?')
-print('  [P] Pasajero')
-print('  [C] Conductor')
-print('  [E] Empresa')
-tipo = input('Tipo: ').strip().lower()
+    # relaciones (FKs)
+    WalletTransaction.query.filter(
+        db.or_(WalletTransaction.user_id == user.id, WalletTransaction.counterparty_id == user.id)
+    ).delete(synchronize_session=False)
+    TopUpRequest.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    PassengerPaymentConfig.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    FavoriteAddress.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    CompanyMember.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    Review.query.filter(
+        db.or_(Review.from_user_id == user.id, Review.to_user_id == user.id)
+    ).delete(synchronize_session=False)
+    Trip.query.filter_by(passenger_id=user.id).delete(synchronize_session=False)
+    Trip.query.filter(Trip.driver_id == user.id).update({'driver_id': None}, synchronize_session=False)
+    if profile:
+        db.session.delete(profile)  # cascade: vehicles, payment_methods
+    db.session.delete(user)
+    db.session.commit()
+    print(f'\nUsuario ID {user_id} eliminado.')
+    return True
 
-if tipo == 'p':
-    table = 'users'
-    label = 'pasajero'
-elif tipo == 'c':
-    table = 'drivers'
-    label = 'conductor'
-elif tipo == 'e':
-    table = 'companies'
-    label = 'empresa'
-else:
-    print('Opción inválida.')
-    conn.close()
-    sys.exit(1)
 
-# ─── Seleccionar ID ───
-id_str = input(f'\nID del {label} a eliminar: ').strip()
-if not id_str.isdigit():
-    print('ID inválido.')
-    conn.close()
-    sys.exit(1)
+def delete_company(company_id):
+    company = Company.query.get(company_id)
+    if not company:
+        print(f'Empresa ID {company_id} no encontrada.')
+        return False
+    print(f'\n{"="*40}')
+    print(f'Empresa: {company.name} <{company.email}> [{company.status}]')
+    print(f'{"="*40}')
+    confirm = input(f'\n¿Eliminar empresa ID {company_id} y sus relaciones? (s/n): ').strip().lower()
+    if confirm != 's':
+        print('Cancelado.')
+        return False
+    CompanyMember.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    Trip.query.filter(Trip.company_id == company.id).update({'company_id': None}, synchronize_session=False)
+    db.session.delete(company)
+    db.session.commit()
+    print(f'\nEmpresa ID {company_id} eliminada.')
+    return True
 
-record_id = int(id_str)
 
-cur.execute(f'SELECT * FROM {table} WHERE id = %s', (record_id,))
-row = cur.fetchone()
-if not row:
-    print(f'{label.capitalize()} con ID {record_id} no encontrado.')
-    conn.close()
-    sys.exit(1)
-
-# Obtener nombres de columnas
-cur.execute(f'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s', (database, table))
-columns = [r[0] for r in cur.fetchall()]
-
-print(f'\n{"="*40}')
-print(f'Registro encontrado ({label}):')
-for col, val in zip(columns, row):
-    if col == 'password':
-        print(f'  {col}: ****')
-    elif val is not None:
-        print(f'  {col}: {val}')
-print(f'{"="*40}')
-
-confirm = input(f'\n¿Eliminar {label} ID {record_id} y TODOS sus datos relacionados? (s/n): ').strip().lower()
-if confirm != 's':
-    print('Cancelado.')
-    conn.close()
-    sys.exit(0)
-
-# ─── Eliminar registros relacionados ───
-cur.execute('SET FOREIGN_KEY_CHECKS = 0')
-
-deleted = []
-
-if table == 'users':
-    cur.execute('DELETE FROM wallet_transactions WHERE user_id = %s', (record_id,))
-    deleted.append(('wallet_transactions', cur.rowcount))
-    cur.execute('DELETE FROM topup_requests WHERE user_id = %s', (record_id,))
-    deleted.append(('topup_requests', cur.rowcount))
-    cur.execute('DELETE FROM passenger_payment_configs WHERE user_id = %s', (record_id,))
-    deleted.append(('passenger_payment_configs', cur.rowcount))
-    cur.execute('DELETE FROM company_members WHERE user_id = %s', (record_id,))
-    deleted.append(('company_members', cur.rowcount))
-    cur.execute('DELETE FROM reviews WHERE from_user_id = %s OR to_user_id = %s', (record_id, record_id))
-    deleted.append(('reviews', cur.rowcount))
-    cur.execute('DELETE FROM trips WHERE passenger_id = %s', (record_id,))
-    deleted.append(('trips', cur.rowcount))
-
-elif table == 'drivers':
-    cur.execute('DELETE FROM wallet_transactions WHERE driver_id = %s', (record_id,))
-    deleted.append(('wallet_transactions', cur.rowcount))
-    cur.execute('DELETE FROM driver_payment_methods WHERE driver_id = %s', (record_id,))
-    deleted.append(('driver_payment_methods', cur.rowcount))
-    cur.execute('DELETE FROM reviews WHERE from_driver_id = %s OR to_driver_id = %s', (record_id, record_id))
-    deleted.append(('reviews', cur.rowcount))
-    cur.execute('UPDATE trips SET driver_id = NULL WHERE driver_id = %s', (record_id,))
-    deleted.append(('trips (driver_id = NULL)', cur.rowcount))
-
-elif table == 'companies':
-    cur.execute('DELETE FROM company_members WHERE company_id = %s', (record_id,))
-    deleted.append(('company_members', cur.rowcount))
-    cur.execute('UPDATE trips SET company_id = NULL WHERE company_id = %s', (record_id,))
-    deleted.append(('trips (company_id = NULL)', cur.rowcount))
-
-cur.execute(f'DELETE FROM {table} WHERE id = %s', (record_id,))
-deleted.append((table, cur.rowcount))
-
-cur.execute('SET FOREIGN_KEY_CHECKS = 1')
-conn.commit()
-conn.close()
-
-print(f'\n{label.capitalize()} ID {record_id} eliminado.')
-print('Registros eliminados:')
-for t, count in deleted:
-    print(f'  {t}: {count}')
+if __name__ == '__main__':
+    with app.app_context():
+        list_records()
+        tipo = input('\n¿Qué quieres eliminar? [U]suario / [E]mpresa: ').strip().lower()
+        if tipo in ('u', 'usuario'):
+            id_str = input('\nID del usuario a eliminar: ').strip()
+            if not id_str.isdigit():
+                print('ID inválido.')
+                sys.exit(1)
+            delete_user(int(id_str))
+        elif tipo in ('e', 'empresa'):
+            id_str = input('\nID de la empresa a eliminar: ').strip()
+            if not id_str.isdigit():
+                print('ID inválido.')
+                sys.exit(1)
+            delete_company(int(id_str))
+        else:
+            print('Opción inválida.')
+            sys.exit(1)

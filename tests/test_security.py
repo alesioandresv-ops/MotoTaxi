@@ -17,15 +17,19 @@ def _create_user(app, email='test@user.com', name='Test User'):
 
 
 def _create_driver(app, email='test@driver.com', name='Test Driver'):
-    from backend.models import db, Driver
+    from backend.models import db, User, DriverProfile, Vehicle, ROLE_DRIVER
     from werkzeug.security import generate_password_hash
     with app.app_context():
-        d = Driver(name=name, email=email, password=generate_password_hash('Pass1234'),
-                   phone='3004445566', profile_picture='', vehicle_type='moto',
-                   placa='ABC123', moto_marca='Yamaha', moto_modelo='R3',
-                   moto_color='Azul', moto_cilindrada='300cc', tipo_seguro='Todo riesgo',
-                   carnet_conducir='A2', ultimo_servicio='2024-01-01', email_verified=True,
-                   is_online=True, is_ocupado=False, lat=19.43, lng=-99.13)
+        d = User(name=name, email=email, password=generate_password_hash('Pass1234'),
+                 phone='3004445566', profile_picture='', role=ROLE_DRIVER, email_verified=True,
+                 driver_profile=DriverProfile(
+                     is_online=True, is_busy=False, lat=19.43, lng=-99.13,
+                     vehicles=[Vehicle(
+                         type='moto', placa='ABC123', marca='Yamaha', modelo='R3',
+                         color='Azul', cilindrada='300cc', tipo_seguro='Todo riesgo',
+                         carnet_conducir='A2', ultimo_servicio='2024-01-01', is_active=True,
+                     )],
+                 ))
         db.session.add(d)
         db.session.commit()
         return d.id

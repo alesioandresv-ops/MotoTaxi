@@ -17,15 +17,20 @@ def _create_user(app, email='test@user.com', balance=1000.0):
 
 
 def _create_driver(app, email='test@driver.com', balance=0.0):
-    from backend.models import db, Driver
+    from backend.models import db, User, DriverProfile, Vehicle, ROLE_DRIVER
     from werkzeug.security import generate_password_hash
     with app.app_context():
-        d = Driver(name='Test Driver', email=email, password=generate_password_hash('Pass1234'),
-                   phone='3004445566', profile_picture='', vehicle_type='moto',
-                   placa='ABC123', moto_marca='Yamaha', moto_modelo='R3',
-                   moto_color='Azul', moto_cilindrada='300cc', tipo_seguro='Todo riesgo',
-                   carnet_conducir='A2', ultimo_servicio='2024-01-01', email_verified=True,
-                   is_online=True, is_ocupado=False, lat=19.43, lng=-99.13, balance=balance)
+        d = User(name='Test Driver', email=email, password=generate_password_hash('Pass1234'),
+                 phone='3004445566', profile_picture='', role=ROLE_DRIVER, email_verified=True,
+                 balance=balance,
+                 driver_profile=DriverProfile(
+                     is_online=True, is_busy=False, lat=19.43, lng=-99.13,
+                     vehicles=[Vehicle(
+                         type='moto', placa='ABC123', marca='Yamaha', modelo='R3',
+                         color='Azul', cilindrada='300cc', tipo_seguro='Todo riesgo',
+                         carnet_conducir='A2', ultimo_servicio='2024-01-01', is_active=True,
+                     )],
+                 ))
         db.session.add(d)
         db.session.commit()
         return d.id
@@ -87,12 +92,60 @@ class TestWalletPayDriver:
         assert rv.status_code == 200
         assert rv.get_json()['success']
 
-        from backend.models import User, Driver
+        from backend.models import User
         with app.app_context():
             u = User.query.get(uid)
-            d = Driver.query.get(did)
+            d = User.query.get(did)
             assert float(u.balance) == 400.0
             assert float(d.balance) == 100.0
+
+    def test_pay_driver_requires_own_trip(self, app, client):
+        """Seguridad: un pasajero no puede pagar un viaje ajeno por su id."""
+        _create_user(app, balance=500.0)
+        _create_driver(app)
+        other = _create_user(app, email='other@test.com', balance=0.0)
+        from backend.models import Trip
+        with app.app_context():
+            trip = Trip(
+                passenger_id=other, pickup_address='A', dropoff_address='B',
+                total_fare=50, platform_fee=0, driver_earnings=50,
+                vehicle_type='moto', status='requested',
+            )
+            db = Trip.query.session
+            db.add(trip)
+            db.commit()
+            trip_id = trip.id
+
+        _login(client, 'test@user.com', 'Pass1234')
+        csrf = _get_csrf(client)
+        rv = client.post('/api/wallet/pay-driver', data=json.dumps({
+            'driver_id': 2, 'amount': 50.0, 'trip_id': trip_id, 'csrf_token': csrf
+        }), content_type='application/json')
+        assert rv.status_code == 404
+
+    def test_pay_driver_amount_capped_by_fare(self, app, client):
+        """Seguridad: el importe no puede exceder la tarifa del viaje."""
+        uid = _create_user(app, balance=500.0)
+        did = _create_driver(app)
+        from backend.models import Trip
+        with app.app_context():
+            trip = Trip(
+                passenger_id=uid, pickup_address='A', dropoff_address='B',
+                total_fare=50, platform_fee=0, driver_earnings=50,
+                vehicle_type='moto', status='requested',
+            )
+            db = Trip.query.session
+            db.add(trip)
+            db.commit()
+            trip_id = trip.id
+
+        _login(client, 'test@user.com', 'Pass1234')
+        csrf = _get_csrf(client)
+        rv = client.post('/api/wallet/pay-driver', data=json.dumps({
+            'driver_id': did, 'amount': 200.0, 'trip_id': trip_id, 'csrf_token': csrf
+        }), content_type='application/json')
+        assert rv.status_code == 400
+        assert 'exceder' in rv.get_json()['error']
 
     def test_pay_driver_insufficient_balance(self, app, client):
         uid = _create_user(app, balance=50.0)
@@ -142,10 +195,10 @@ class TestWalletTripPayment:
         rv = client.post(f'/driver/complete/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
         assert rv.status_code == 200
 
-        from backend.models import User, Driver, Trip
+        from backend.models import User, Trip
         with app.app_context():
             u = User.query.get(uid)
-            d = Driver.query.get(did)
+            d = User.query.get(did)
             t = Trip.query.get(trip_id)
             assert float(u.balance) < 1000.0
             assert float(d.balance) > 0.0

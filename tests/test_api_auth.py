@@ -61,7 +61,7 @@ class TestRegister:
         assert body['success'] is True
         data = body['data']
         assert data['user']['email'] == 'ana@test.com'
-        assert data['user']['type'] == 'user'
+        assert data['user']['role'] == 'passenger'
         assert data['tokens']['access_token'] and data['tokens']['refresh_token']
         assert data['tokens']['token_type'] == 'Bearer'
 
@@ -82,8 +82,28 @@ class TestRegister:
         rv = _api(client, 'POST', '/api/v1/auth/register/driver', data=DRIVER_REGISTER)
         assert rv.status_code == 201
         user = rv.get_json()['data']['user']
-        assert user['type'] == 'driver'
-        assert user['vehicle_type'] == 'moto'
+        assert user['role'] == 'driver'
+        assert user['driver']['vehicle_type'] == 'moto'
+
+    def test_register_driver_promotes_existing_passenger_to_both(self, app, client):
+        _register(client)
+        rv = _api(client, 'POST', '/api/v1/auth/register/driver',
+                  data=dict(DRIVER_REGISTER, email='ana@test.com'))
+        assert rv.status_code == 201
+        user = rv.get_json()['data']['user']
+        assert user['email'] == 'ana@test.com'
+        assert user['role'] == 'both'
+        assert user['driver']['vehicle_type'] == 'moto'
+        # el login con el mismo email resuelve el mismo usuario
+        rv = _login(client)
+        assert rv.status_code == 200
+        assert rv.get_json()['data']['user']['role'] == 'both'
+
+    def test_register_driver_rejects_existing_driver_email(self, app, client):
+        _api(client, 'POST', '/api/v1/auth/register/driver', data=DRIVER_REGISTER)
+        rv = _api(client, 'POST', '/api/v1/auth/register/driver', data=DRIVER_REGISTER)
+        assert rv.status_code == 409
+        assert rv.get_json()['error']['code'] == 'EMAIL_TAKEN'
 
     def test_register_driver_missing_fields(self, app, client):
         rv = _api(client, 'POST', '/api/v1/auth/register/driver', data={
@@ -104,7 +124,7 @@ class TestLogin:
         rv = _login(client)
         assert rv.status_code == 200
         data = rv.get_json()['data']
-        assert data['user']['type'] == 'user'
+        assert data['user']['role'] == 'passenger'
         assert data['tokens']['access_token']
 
     def test_login_wrong_password(self, app, client):
@@ -118,7 +138,9 @@ class TestLogin:
         rv = _api(client, 'POST', '/api/v1/auth/login',
                   data={'email': 'carlos@test.com', 'password': 'Pass1234'})
         assert rv.status_code == 200
-        assert rv.get_json()['data']['user']['type'] == 'driver'
+        user = rv.get_json()['data']['user']
+        assert user['role'] == 'driver'
+        assert user['active_mode'] == 'driver'
 
     def test_login_missing_fields(self, app, client):
         rv = _api(client, 'POST', '/api/v1/auth/login', data={})
@@ -148,7 +170,7 @@ class TestAccessToken:
         secret = app.config['JWT_SECRET_KEY']
         now = datetime.now(timezone.utc)
         token = pyjwt.encode({
-            'sub': '1', 'utype': 'user', 'jti': 'x',
+            'sub': '1', 'role': 'passenger', 'jti': 'x',
             'iat': now - timedelta(hours=1), 'exp': now - timedelta(minutes=5),
         }, secret, algorithm='HS256')
         rv = _api(client, 'GET', '/api/v1/auth/me', token=token)
@@ -161,7 +183,52 @@ class TestAccessToken:
                               data={'email': 'carlos@test.com', 'password': 'Pass1234'}))
         rv = _api(client, 'GET', '/api/v1/auth/me', token=tokens['access_token'])
         assert rv.status_code == 200
-        assert rv.get_json()['data']['user']['type'] == 'driver'
+        assert rv.get_json()['data']['user']['role'] == 'driver'
+
+
+class TestDualRole:
+    def test_both_login_defaults_to_passenger_mode(self, app, client):
+        _register(client)
+        _api(client, 'POST', '/api/v1/auth/register/driver',
+             data=dict(DRIVER_REGISTER, email='ana@test.com'))
+        rv = _login(client)
+        assert rv.status_code == 200
+        data = rv.get_json()['data']
+        assert data['user']['role'] == 'both'
+        assert data['user']['active_mode'] == 'passenger'
+
+    def test_both_login_with_mode_param(self, app, client):
+        _register(client)
+        _api(client, 'POST', '/api/v1/auth/register/driver',
+             data=dict(DRIVER_REGISTER, email='ana@test.com'))
+        rv = _login(client)
+        assert rv.status_code == 200
+        assert rv.get_json()['data']['user']['active_mode'] == 'passenger'
+        rv = _api(client, 'POST', '/api/v1/auth/login',
+                  data={'email': 'ana@test.com', 'password': 'Pass1234', 'mode': 'driver'})
+        assert rv.status_code == 200
+        data = rv.get_json()['data']
+        assert data['user']['active_mode'] == 'driver'
+        assert data['user']['driver']['vehicle_type'] == 'moto'
+
+    def test_switch_mode_rotates_access_token(self, app, client):
+        _register(client)
+        tokens = _tokens(_login(client))
+        rv = _api(client, 'POST', '/api/v1/auth/switch-mode',
+                  token=tokens['access_token'], data={'mode': 'driver'})
+        assert rv.status_code == 403  # rol passenger no admite switch
+
+    def test_switch_mode_for_both(self, app, client):
+        _register(client)
+        _api(client, 'POST', '/api/v1/auth/register/driver',
+             data=dict(DRIVER_REGISTER, email='ana@test.com'))
+        tokens = _tokens(_login(client))
+        rv = _api(client, 'POST', '/api/v1/auth/switch-mode',
+                  token=tokens['access_token'], data={'mode': 'driver'})
+        assert rv.status_code == 200
+        data = rv.get_json()['data']
+        assert data['active_mode'] == 'driver'
+        assert data['access_token'] != tokens['access_token']
 
 
 class TestRefreshRotation:

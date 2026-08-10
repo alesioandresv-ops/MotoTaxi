@@ -309,6 +309,10 @@ def run_all(app=None):
         _run_alembic()
     elif _is_mysql(url):
         print('[Migracion] MySQL legacy detectado — migracion pymysql', flush=True)
+        print('[WARN] El esquema MySQL legacy (tabla drivers) ya no es compatible '
+              'con los modelos unificados (users.role + driver_profiles + vehicles).', flush=True)
+        print('[WARN] Recrea la BD de desarrollo (DROP/CREATE) o usa PostgreSQL '
+              '(objetivo). Los datos legacy se migran con Alembic 0002 sobre PG.', flush=True)
         run_migration(url)
         db.create_all()
     else:

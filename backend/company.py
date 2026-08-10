@@ -7,7 +7,7 @@ from functools import wraps
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, session, request, redirect, url_for, flash, jsonify, current_app
 from sqlalchemy import update
-from .models import db, User, Driver, Trip, Company, CompanyMember
+from .models import db, User, Trip, Company, CompanyMember
 from werkzeug.security import generate_password_hash, check_password_hash
 from .routes import csrf_required
 from .extensions import limiter
@@ -416,18 +416,18 @@ def api_trips():
 
     result = []
     for t in trips:
-        driver = Driver.query.get(t.driver_id) if t.driver_id else None
+        driver = User.query.get(t.driver_id) if t.driver_id else None
         result.append({
             'id': t.id,
             'pickup': t.pickup_address,
             'dropoff': t.dropoff_address,
-            'fare': t.fare,
+            'fare': t.total_fare,
             'status': t.status,
             'vehicle_type': t.vehicle_type,
             'driver_name': driver.name if driver else None,
             'requested_at': t.requested_at.isoformat() if t.requested_at else None,
         })
-    return jsonify({'trips': result, 'total': sum(t.fare for t in trips if t.status == 'completed')})
+    return jsonify({'trips': result, 'total': sum(t.total_fare for t in trips if t.status == 'completed')})
 
 
 # ─── Admin: activar empresa por transferencia ───
