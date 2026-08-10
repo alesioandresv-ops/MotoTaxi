@@ -181,6 +181,34 @@ TABLAS = {
             FOREIGN KEY (user_id) REFERENCES users(id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    'refresh_tokens': """
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            user_type VARCHAR(10) NOT NULL,
+            user_id INTEGER NOT NULL,
+            token_hash VARCHAR(64) NOT NULL UNIQUE,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            revoked_at DATETIME NULL,
+            replaced_by_id INTEGER NULL,
+            user_agent VARCHAR(255) NULL,
+            INDEX idx_refresh_user (user_type, user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    'email_verifications': """
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            user_type VARCHAR(10) NOT NULL,
+            user_id INTEGER NOT NULL,
+            email VARCHAR(120) NOT NULL,
+            code_hash VARCHAR(64) NOT NULL,
+            attempts INTEGER DEFAULT 0,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            verified_at DATETIME NULL,
+            INDEX idx_email_verif_user (user_type, user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 }
 
 

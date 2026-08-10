@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: VAN API
+  version: 1.0.0
+  description: >
+    API REST de VAN para la app móvil (Flutter). Toda la lógica de negocio
+    vive en el servidor; la app es un cliente delgado.
+
+    Autenticación: Bearer JWT. El login devuelve access_token (corto,
+    30 min) y refresh_token (opaco, 30 días, rotativo). Cuando el
+    access_token expira, la app debe llamar POST /auth/refresh con el
+    refresh_token para obtener un par nuevo. El refresh_token se revoca
+    con POST /auth/logout.
+
+    Envelope de respuestas:
+      Exito:  {"success": true,  "data": {...}}
+      Error:  {"success": false, "error": {"code": "CODE", "message": "..."}}
+tags:
+  - name: auth
+    description: Registro, login, tokens y verificación de email
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Registra un pasajero y devuelve tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registrado. Incluye tokens y perfil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          description: Email ya registrado (EMAIL_TAKEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/register/driver:
+    post:
+      tags: [auth]
+      summary: Registra un conductor con datos de vehículo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDriverRequest'
+      responses:
+        '201':
+          description: Registrado. Incluye tokens y perfil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          description: Email ya registrado (EMAIL_TAKEN)
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Inicia sesión con email y password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string, example: ana@test.com}
+                password: {type: string, example: Pass1234}
+      responses:
+        '200':
+          description: Login exitoso. Tokens + perfil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: Email sin verificar (EMAIL_NOT_VERIFIED)
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rota el refresh token y devuelve un par nuevo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        '200':
+          description: Par de tokens nuevo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  data:
+                    type: object
+                    properties:
+                      access_token: {type: string}
+                      refresh_token: {type: string}
+                      token_type: {type: string}
+        '401':
+          $ref: '#/components/responses/Error'
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoca el refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        '200':
+          description: Token revocado
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Perfil del usuario autenticado (pasajero o conductor)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Error'
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Verifica el email con el código enviado al registrarse
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: {type: string, example: '123456'}
+      responses:
+        '200':
+          description: Email verificado
+        '400':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success: {type: boolean, example: false}
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_CREDENTIALS
+            message:
+              type: string
+              example: Credenciales inválidas
+    Tokens:
+      type: object
+      properties:
+        access_token: {type: string}
+        refresh_token: {type: string}
+        token_type: {type: string, example: Bearer}
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: {type: string, example: Ana Pérez}
+        email: {type: string, example: ana@test.com}
+        password: {type: string, example: Pass1234}
+        phone: {type: string, example: '3001112233'}
+    RegisterDriverRequest:
+      type: object
+      required: [name, email, password, phone, vehicle_type]
+      properties:
+        name: {type: string}
+        email: {type: string}
+        password: {type: string}
+        phone: {type: string}
+        vehicle_type: {type: string, enum: [moto, auto]}
+        profile_picture: {type: string, description: Base64 o data URL de la foto}
+        carnet_conducir: {type: string}
+        placa: {type: string}
+        moto_marca: {type: string}
+        moto_modelo: {type: string}
+        moto_color: {type: string}
+        moto_cilindrada: {type: string}
+        tipo_seguro: {type: string}
+        ultimo_servicio: {type: string}
+        placa_auto: {type: string}
+        auto_marca: {type: string}
+        auto_modelo: {type: string}
+        auto_color: {type: string}
+        auto_año: {type: string}
+        tipo_seguro_auto: {type: string}
+        carnet_conducir_auto: {type: string}
+        ultimo_servicio_auto: {type: string}
+    User:
+      type: object
+      properties:
+        id: {type: integer}
+        type: {type: string, enum: [user, driver]}
+        name: {type: string}
+        email: {type: string}
+        phone: {type: string}
+        email_verified: {type: boolean}
+        rating_avg: {type: number}
+        rating_count: {type: integer}
+        profile_picture: {type: string, nullable: true}
+        vehicle_type: {type: string, nullable: true}
+        is_verified: {type: boolean, nullable: true}
+    AuthResponse:
+      type: object
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            tokens:
+              $ref: '#/components/schemas/Tokens'
+            user:
+              $ref: '#/components/schemas/User'
+            verification_sent: {type: boolean}

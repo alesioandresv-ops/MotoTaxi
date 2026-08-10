@@ -15,6 +15,7 @@ from backend.extensions import limiter
 from backend.auth import auth_bp
 from backend.routes import main_bp
 from backend.company import company_bp
+from backend.api import api_bp
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
@@ -48,6 +49,13 @@ def create_app():
     if not app.config['SECRET_KEY']:
         raise RuntimeError("SECRET_KEY debe estar definida en .env para produccion")
 
+    # JWT para la API /api/v1 (app móvil). Si JWT_SECRET_KEY no está
+    # definida, usa SECRET_KEY (migración incremental; en producción
+    # conviene una clave dedicada y rotable).
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+    app.config['JWT_ACCESS_TTL_MINUTES'] = int(os.getenv('JWT_ACCESS_TTL_MINUTES', '30'))
+    app.config['JWT_REFRESH_TTL_DAYS'] = int(os.getenv('JWT_REFRESH_TTL_DAYS', '30'))
+
     # Validate SMTP config if any SMTP env var is set
     smtp_user = os.getenv('SMTP_USER')
     smtp_pass = os.getenv('SMTP_PASS')
@@ -74,6 +82,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(company_bp)
+    app.register_blueprint(api_bp)
 
     os.makedirs(os.path.join(base_dir, 'static', 'uploads'), exist_ok=True)
 

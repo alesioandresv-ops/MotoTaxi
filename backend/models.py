@@ -198,3 +198,30 @@ class TopUpRequest(db.Model):
     confirmed_at = db.Column(db.DateTime, nullable=True)
 
     user = db.relationship('User', backref='topup_requests')
+
+class RefreshToken(db.Model):
+    """Sesiones de refresh token para la API (/api/v1).
+    user_type: 'user' (pasajero) o 'driver' (conductor). user_id referencia
+    users.id o drivers.id segun user_type (sin FK dual a proposito)."""
+    __tablename__ = 'refresh_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    user_type = db.Column(db.String(10), nullable=False)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    replaced_by_id = db.Column(db.Integer, nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+
+class EmailVerification(db.Model):
+    __tablename__ = 'email_verifications'
+    id = db.Column(db.Integer, primary_key=True)
+    user_type = db.Column(db.String(10), nullable=False)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    email = db.Column(db.String(120), nullable=False)
+    code_hash = db.Column(db.String(64), nullable=False)
+    attempts = db.Column(db.Integer, default=0)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    verified_at = db.Column(db.DateTime, nullable=True)

@@ -13,6 +13,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from .models import db, User, Driver, Trip, Review
 from werkzeug.security import generate_password_hash, check_password_hash
 from .routes import login_required, csrf_required, sanitize_input
+from .validators import validate_name, validate_email, validate_password, first_error
 from .extensions import limiter
 from sqlalchemy.exc import IntegrityError
 
@@ -91,17 +92,9 @@ def register():
         password = request.form.get('password', '')
         phone = request.form.get('phone', '').strip()
 
-        if not name or len(name) < 2:
-            flash('El nombre debe tener al menos 2 caracteres', 'danger')
-            return redirect(url_for('auth.register'))
-        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-            flash('Correo electrónico inválido', 'danger')
-            return redirect(url_for('auth.register'))
-        if len(password) < 8:
-            flash('La contraseña debe tener al menos 8 caracteres', 'danger')
-            return redirect(url_for('auth.register'))
-        if not re.search(r'[A-Z]', password) or not re.search(r'[0-9]', password):
-            flash('La contraseña debe contener al menos una mayúscula y un número', 'danger')
+        err = first_error(validate_name(name), validate_email(email), validate_password(password))
+        if err:
+            flash(err, 'danger')
             return redirect(url_for('auth.register'))
 
         if User.query.filter_by(email=email).first():
@@ -169,17 +162,9 @@ def driver_register():
         phone = request.form.get('phone', '').strip()
         vehicle_type = request.form.get('vehicle_type', 'moto')
 
-        if not name or len(name) < 2:
-            flash('El nombre debe tener al menos 2 caracteres', 'danger')
-            return redirect(url_for('auth.driver_register'))
-        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-            flash('Correo electrónico inválido', 'danger')
-            return redirect(url_for('auth.driver_register'))
-        if len(password) < 8:
-            flash('La contraseña debe tener al menos 8 caracteres', 'danger')
-            return redirect(url_for('auth.driver_register'))
-        if not re.search(r'[A-Z]', password) or not re.search(r'[0-9]', password):
-            flash('La contraseña debe contener al menos una mayúscula y un número', 'danger')
+        err = first_error(validate_name(name), validate_email(email), validate_password(password))
+        if err:
+            flash(err, 'danger')
             return redirect(url_for('auth.driver_register'))
 
         if Driver.query.filter_by(email=email).first():

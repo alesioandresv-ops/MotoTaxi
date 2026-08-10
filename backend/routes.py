@@ -6,7 +6,6 @@ import math
 import secrets
 import urllib.request
 import urllib.parse
-import bleach
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from werkzeug.utils import secure_filename
@@ -15,6 +14,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from .models import db, User, Driver, Trip, Review, DriverPaymentMethod, PassengerPaymentConfig, FavoriteAddress, WalletTransaction, TopUpRequest
 from .extensions import encrypt_details, decrypt_details, limiter
+from .validators import sanitize_input
 
 main_bp = Blueprint('main', __name__)
 
@@ -41,13 +41,6 @@ def login_required(f):
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
     return decorated
-
-def sanitize_input(value):
-    if value is None:
-        return None
-    value = str(value).strip()
-    value = bleach.clean(value, tags=[], strip=True)
-    return value[:500]
 
 def admin_required(f):
     @wraps(f)
