@@ -291,19 +291,29 @@ def run_migration(url):
     conn.close()
 
 
-def run_all(app):
-    url = os.environ.get('DATABASE_URL', '')
-    if url:
-        print("[Migracion] Verificando columnas/tablas...", flush=True)
-        try:
-            run_migration(url)
-        except Exception as e:
-            print(f"  [WARN] Migration error: {e}", flush=True)
+def _run_alembic():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    from alembic import command
+    from alembic.config import Config
+    cfg = Config(os.path.join(root, 'alembic.ini'))
+    cfg.set_main_option('script_location', os.path.join(root, 'migrations'))
+    command.upgrade(cfg, 'head')
+    print('[Migracion] Alembic upgrade head OK', flush=True)
 
-    print("[Migracion] db.create_all()...", flush=True)
+
+def run_all(app=None):
     from backend.models import db
-    db.create_all()
-    print("[Migracion] OK", flush=True)
+    url = os.environ.get('DATABASE_URL', '')
+    if url.startswith('postgres'):
+        print('[Migracion] PostgreSQL detectado — esquema gestionado por Alembic', flush=True)
+        _run_alembic()
+    elif _is_mysql(url):
+        print('[Migracion] MySQL legacy detectado — migracion pymysql', flush=True)
+        run_migration(url)
+        db.create_all()
+    else:
+        db.create_all()
+    print('[Migracion] OK', flush=True)
 
 
 if __name__ == '__main__':
