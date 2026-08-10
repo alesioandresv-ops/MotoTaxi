@@ -39,9 +39,31 @@ def _create_passenger(app):
         return u.id
 
 
+def _create_driver(app):
+    from backend.models import db, User, DriverProfile, Vehicle, ROLE_DRIVER
+    from werkzeug.security import generate_password_hash
+    with app.app_context():
+        u = User(name='Chof', email='chof@test.com',
+                 password=generate_password_hash('Pass1234'),
+                 phone='3001112233', email_verified=True, role=ROLE_DRIVER,
+                 driver_profile=DriverProfile(
+                     is_online=False, is_busy=False,
+                     vehicles=[Vehicle(type='moto', placa='MOT000', marca='Honda',
+                                       modelo='CB', color='Roja', cilindrada='150cc',
+                                       tipo_seguro='Todo riesgo', carnet_conducir='A2',
+                                       ultimo_servicio='2024-01-01', is_active=True)],
+                 ))
+        db.session.add(u)
+        db.session.commit()
+        return u.id
+
+
 def _csrf_from(client, url='/login'):
     rv = client.get(url)
     match = re.search(rb'window\.CSRF_TOKEN\s*=\s*"([^"]+)"', rv.data)
+    if match:
+        return match.group(1).decode()
+    match = re.search(rb'name="csrf_token" value="([^"]+)"', rv.data)
     return match.group(1).decode() if match else ''
 
 
@@ -128,6 +150,47 @@ class TestDualModeWeb:
         assert rv.status_code == 200
         assert b'Dual User' in rv.data  # identidad unificada (users)
         assert b'Conectarse' in rv.data  # toggle online del perfil de conductor
+
+
+class TestDriverOnlyAndAdmin:
+    def test_driver_only_login_skips_selector(self, app, client):
+        _create_driver(app)
+        csrf = _csrf_from(client)
+        rv = client.post('/login', data={
+            'email': 'chof@test.com', 'password': 'Pass1234', 'csrf_token': csrf
+        }, follow_redirects=True)
+        assert rv.status_code == 200
+        assert b'select-mode' not in rv.data
+        assert b'Conectarse' in rv.data  # dashboard conductor directo
+
+    def test_admin_login_enters_admin_panel(self, app, client, monkeypatch):
+        monkeypatch.setenv('ADMIN_SECRET_KEY', 'admin-key-test')
+        csrf = _csrf_from(client, '/admin/login')
+        rv = client.post('/admin/login', data={
+            'password': 'admin-key-test', 'csrf_token': csrf
+        }, follow_redirects=True)
+        assert rv.status_code == 200
+        assert b'Panel de comprobantes' in rv.data
+
+    def test_admin_login_wrong_key_rejected(self, app, client, monkeypatch):
+        monkeypatch.setenv('ADMIN_SECRET_KEY', 'admin-key-test')
+        csrf = _csrf_from(client, '/admin/login')
+        rv = client.post('/admin/login', data={
+            'password': 'nope', 'csrf_token': csrf
+        }, follow_redirects=True)
+        assert rv.status_code == 200
+        assert b'Clave incorrecta' in rv.data
+
+    def test_admin_drivers_page_renders_unified_drivers(self, app, client, monkeypatch):
+        monkeypatch.setenv('ADMIN_SECRET_KEY', 'admin-key-test')
+        _create_driver(app)
+        csrf = _csrf_from(client, '/admin/login')
+        client.post('/admin/login', data={
+            'password': 'admin-key-test', 'csrf_token': csrf
+        })
+        rv = client.get('/admin/drivers')
+        assert rv.status_code == 200
+        assert b'Chof' in rv.data  # conductor listado desde users+driver_profiles
 
 
 class TestEditProfileCsrf:

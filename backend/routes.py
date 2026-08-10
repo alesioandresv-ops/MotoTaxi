@@ -1707,7 +1707,7 @@ def admin_login():
         if not token or not hmac.compare_digest(str(token), str(session.get('csrf_token', ''))):
             flash('Token CSRF inválido', 'danger')
             return redirect(url_for('main.admin_login'))
-        key = request.form.get('key', '')
+        key = request.form.get('password') or request.form.get('key')
         if key and hmac.compare_digest(str(key), str(admin_key)):
             session.clear()
             session['csrf_token'] = secrets.token_hex(32)
