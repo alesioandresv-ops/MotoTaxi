@@ -1,0 +1,23 @@
+# PostgreSQL local para desarrollo full-stack (reemplaza MySQL local).
+# Uso: docker compose up -d  →  create database van
+# Luego: DATABASE_URL=postgresql+psycopg://van:van@127.0.0.1:5432/van
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: van_pg
+    environment:
+      POSTGRES_USER: van
+      POSTGRES_PASSWORD: van
+      POSTGRES_DB: van
+    ports:
+      - "5432:5432"
+    volumes:
+      - van_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U van"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  van_pg_data:
