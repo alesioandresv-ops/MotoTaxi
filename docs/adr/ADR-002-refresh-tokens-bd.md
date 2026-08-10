@@ -42,7 +42,7 @@ Positivas:
 Negativas:
 - Una escritura en BD por login/refresh (despreciable a la escala actual;
   Redis lo resuelve en Fase 5 si hace falta).
-- `user_id` sin FK dual (referencia `users.id` o `drivers.id` según
-  `user_type`) — documentado en el modelo.
+- (Histórico) `user_id` sin FK dual: con la identidad unificada (ADR-003)
+  `refresh_tokens.user_id` referencia `users.id` con FK real.
 
 Supera a: ninguna — decisión nueva.
