@@ -11,12 +11,7 @@ from flask import Blueprint, jsonify, request, current_app, send_from_directory
 api_bp = Blueprint('api', __name__, url_prefix='/api/v1')
 
 
-class ApiError(Exception):
-    def __init__(self, code, message, status=400):
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.status = status
+from backend.api.errors import ApiError, ERROR_CATALOG, api_error, raise_api_error  # noqa: E402
 
 
 def ok(data=None):

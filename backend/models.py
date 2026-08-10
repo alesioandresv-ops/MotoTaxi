@@ -27,6 +27,11 @@ MODE_DRIVER = 'driver'
 TRIP_STATUSES = ('requested', 'accepted', 'ongoing', 'completed', 'cancelled')
 VEHICLE_TYPES = ('moto', 'auto')
 
+DRIVER_STATUS_PENDING = 'pending'
+DRIVER_STATUS_APPROVED = 'approved'
+DRIVER_STATUS_REJECTED = 'rejected'
+DRIVER_STATUSES = (DRIVER_STATUS_PENDING, DRIVER_STATUS_APPROVED, DRIVER_STATUS_REJECTED)
+
 
 def _now():
     return datetime.utcnow()
@@ -78,15 +83,27 @@ class User(db.Model):
 
 
 class DriverProfile(db.Model):
-    """Estado y verificación del conductor. 1:1 con users."""
+    """Estado y verificación del conductor. 1:1 con users.
+
+    status es la ÚNICA fuente de autorización del conductor
+    (pending | approved | rejected). `is_verified` (legacy) queda solo como
+    alias de presentación para templates vía driver_view(); no autoriza.
+    El DDL de esta columna para PostgreSQL llega con la migración 0003
+    (backfill: existentes → approved; nuevos → pending).
+    """
     __tablename__ = 'driver_profiles'
     __table_args__ = (
         Index('ix_driver_profiles_online_free', 'is_online', 'is_busy'),
+        CheckConstraint(f"status IN {DRIVER_STATUSES}", name='chk_driver_profile_status'),
     )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
         nullable=False, unique=True,
+    )
+    status = db.Column(
+        db.String(10), nullable=False, default=DRIVER_STATUS_PENDING,
+        server_default=DRIVER_STATUS_PENDING,
     )
     is_online = db.Column(db.Boolean, default=False)
     is_busy = db.Column(db.Boolean, default=False)
