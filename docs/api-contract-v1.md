@@ -1,7 +1,9 @@
 # Contrato API v1 — VAN (definitivo, backend-first para Flutter)
 
-- Estado: **APROBADO** (2026-08-10) — contrato definitivo; en ejecución la
-  Etapa 0 (infraestructura API: errores, decorators, serializers)
+- Estado: **APROBADO** (2026-08-10) — contrato definitivo. Implementado:
+  Etapa 0 (infraestructura API: errores, decorators, serializers, auth,
+  openapi) y migración 0003 (`driver_profiles.status`). Pendiente: Trips API
+  y módulos siguientes (numeración de implementación en VAN_MASTER_SPEC.md §7).
 - Fecha: 2026-08-10
 - Alcance: viajes, wallet/pagos, company, verificación de conductores,
   errores/paginación. **Ubicación en tiempo real (Socket.IO): fuera de esta
@@ -593,12 +595,15 @@ backfill (existentes → approved; nuevos → pending); `driver_view` expone
 **test_trips_service.py** (unit services): transiciones legales/ilegales
 de la máquina §6; invarianzas I1–I6 con dinero Decimal.
 
-**test_web_regression.py** (o suite existente): los 96 tests siguen
+**test_web_regression.py** (o suite existente): los 149 tests siguen
 pasando + smoke web (login dual, select-mode, dashboard, admin, pay-driver
 web intacto).
 
 ---
 
-Con la aprobación de este contrato, arranco la **Etapa 0** (infraestructura
-API: errores, decorators, serializers) y sigo por las etapas 1–7 en commits
-pequeños, reversibles y con la suite en verde al final de cada una.
+Estado actual: la **Etapa 0** (infraestructura API: errores, decorators,
+serializers, auth, openapi) y la **migración 0003** están completadas. El
+seguimiento de implementación usa Etapa 1 = migración 0003 y **Etapa 2 =
+Trips API** (numeración en VAN_MASTER_SPEC.md §7); los módulos 1–7 de este
+contrato se implementan en commits pequeños, reversibles y con la suite en
+verde al final de cada uno.

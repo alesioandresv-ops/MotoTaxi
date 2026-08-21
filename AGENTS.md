@@ -38,8 +38,8 @@ python migrate.py   # usa la config de backend/.env (alembic upgrade head)
 
 - `backend/app.py` — `create_app()` factory. Al arrancar llama a `backend.migration.run_all()` → `alembic upgrade head`.
 - `backend/migration.py` — Alembic (PostgreSQL). El branch pymysql legacy emite WARN: incompatible con los modelos unificados.
-- `migrations/` — Alembic. `0001` = baseline del esquema unificado; `0002` = unifica legacy `drivers` → `users` + `driver_profiles` + `vehicles` (reversible). Migraciones de datos protegidas con `is_offline_mode()` para `--sql`.
-- `backend/models.py` — SQLAlchemy: `User` (única identidad, campo `role`: passenger|driver|both|admin|company), `DriverProfile` (1:1, `is_online`/`is_busy`), `Vehicle` (1:N), `Trip`, `Review`, `RefreshToken`, `EmailVerification`, `TopUpRequest`, `WalletTransaction`, `Company*`.
+- `migrations/` — Alembic. `7234ca128813` (0001) = baseline del esquema legacy pre-refactor (tabla `drivers`, FKs duales); `0002` = refactor a identidad unificada `users` + `driver_profiles` + `vehicles` (reversible, merge defensivo de `drivers`); `0003` = `driver_profiles.status` (backfill existentes → `approved`, nuevos → `pending`, CHECK `chk_driver_profile_status`; usa `batch_alter_table` para ser testeable en SQLite). Migraciones de datos protegidas con `is_offline_mode()` para `--sql`.
+- `backend/models.py` — SQLAlchemy: `User` (única identidad, campo `role`: passenger|driver|both|admin|company), `DriverProfile` (1:1, `status` pending|approved|rejected = única fuente de autorización; `is_online`/`is_busy`), `Vehicle` (1:N), `Trip`, `Review`, `RefreshToken`, `EmailVerification`, `TopUpRequest`, `WalletTransaction`, `Company*`.
 - `backend/services/identity.py` — sesión unificada: `user_id` único, `user_role`, `active_mode` (contexto, nunca autoriza), helpers `allowed_modes()` / `switch_mode()` / `driver_view()` (capa plana legacy para templates).
 - `backend/services/fare.py` — dinero Decimal, `build_fare()` con `platform_fee` (comisión 5% persistida, NO cobrada aún — Fase 4).
 - `backend/auth.py` — Blueprint `auth`: registro pasajero/conductor, login por rol, `/select-mode` (usuario `both`), `/switch-mode`, perfil, verificación email (web, sesiones).
@@ -68,6 +68,7 @@ python migrate.py   # usa la config de backend/.env (alembic upgrade head)
 | POST | `/api/v1/auth/refresh` | `{refresh_token}` → par nuevo (rotación) |
 | POST | `/api/v1/auth/logout` | `{refresh_token}` → revoca |
 | GET | `/api/v1/auth/me` | Perfil del token |
+| POST | `/api/v1/auth/switch-mode` | Cambia `mode` (solo `both`) → access token nuevo |
 | POST | `/api/v1/auth/verify-email` | `{code}` con Bearer |
 
 JWT claims: `sub` (user_id), `role`, `mode` (contexto, nunca autoriza),
@@ -117,7 +118,7 @@ Geocodificación real vía Nominatim. Fallback a longitud de dirección si falla
   contra SQLite local.
 - `FLASK_DEBUG=1` en `.env` activa debug mode. `PORT` variable de entorno (default 5000).
 - La landing page `/` sirve `demo/index.html` si existe, sino `templates/index.html`.
-- Sin lint/CI configurados. Tests existen en `tests/` (96 tests, suite completa).
+- Sin lint/CI configurados. Tests existen en `tests/` (149 tests, suite completa — baseline `python -m pytest -q`).
 - Refresh tokens: nunca loguear el valor; la tabla guarda hash SHA-256 (ADR-002).
 - La web y la API comparten validaciones de `backend/validators.py` — no duplicar reglas.
 - Pitfall SQLAlchemy: no usar `user.driver_profile or DriverProfile(...)` tras
