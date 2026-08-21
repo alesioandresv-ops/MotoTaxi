@@ -28,9 +28,66 @@ def _fk_name(table, column):
     return f'{table}_{column}_fkey'
 
 
+def _is_sqlite():
+    return _bind().dialect.name == 'sqlite'
+
+
 def _drop_fk(table, column):
-    name = _fk_name(table, column)
-    op.drop_constraint(name, table, type_='foreignkey')
+    # En SQLite las FK no tienen nombre y no se pueden soltar por separado:
+    # el batch_alter_table de _drop_column reconstruye la tabla sin ellas.
+    if _is_sqlite():
+        return
+    op.drop_constraint(_fk_name(table, column), table, type_='foreignkey')
+
+
+def _create_fk(name, table, referent, local_cols, remote_cols, ondelete=None):
+    if _is_sqlite():
+        with op.batch_alter_table(table) as batch:
+            batch.create_foreign_key(name, referent, local_cols, remote_cols, ondelete=ondelete)
+    else:
+        op.create_foreign_key(name, table, referent, local_cols, remote_cols, ondelete=ondelete)
+
+
+def _create_check(name, table, condition):
+    if _is_sqlite():
+        with op.batch_alter_table(table) as batch:
+            batch.create_check_constraint(name, condition)
+    else:
+        op.create_check_constraint(name, table, condition)
+
+
+def _create_unique(name, table, columns):
+    if _is_sqlite():
+        with op.batch_alter_table(table) as batch:
+            batch.create_unique_constraint(name, columns)
+    else:
+        op.create_unique_constraint(name, table, columns)
+
+
+def _set_nullable(table, column, existing_type, nullable):
+    if _is_sqlite():
+        with op.batch_alter_table(table) as batch:
+            batch.alter_column(column, existing_type=existing_type, nullable=nullable)
+    else:
+        op.alter_column(table, column, existing_type=existing_type, nullable=nullable)
+
+
+def _drop_column(table, column):
+    # batch en SQLite: DROP COLUMN nativo falla si la columna participa en
+    # FK o CHECK; la reconstrucción de tabla los elimina correctamente.
+    if _is_sqlite():
+        with op.batch_alter_table(table) as batch:
+            batch.drop_column(column)
+    else:
+        op.drop_column(table, column)
+
+
+def _drop_named(type_, name, table):
+    # SQLite no almacena nombres de constraints: el drop se omite y la
+    # recreación de tabla (_drop_column) los elimina implícitamente.
+    if _is_sqlite():
+        return
+    op.drop_constraint(name, table, type_=type_)
 
 
 def _bind():
@@ -206,7 +263,7 @@ def upgrade():
                   server_default='passenger'),
     )
     op.create_index('ix_users_email_lower', 'users', [sa.text('lower(email)')], unique=True)
-    op.create_check_constraint(
+    _create_check(
         'chk_users_role',
         'users',
         "role IN ('passenger', 'driver', 'both', 'admin', 'company')",
@@ -279,8 +336,8 @@ def upgrade():
         bind.execute(
             sa.text('UPDATE trips SET driver_earnings = total_fare WHERE driver_earnings IS NULL')
         )
-    op.alter_column('trips', 'driver_earnings', nullable=False)
-    op.create_foreign_key(
+    _set_nullable('trips', 'driver_earnings', sa.Numeric(12, 2), False)
+    _create_fk(
         'fk_trips_vehicle_id_vehicles', 'trips', 'vehicles', ['vehicle_id'], ['id'],
     )
 
@@ -291,21 +348,19 @@ def upgrade():
                 {'u': new_uid, 'd': old_did},
             )
     _drop_fk('trips', 'driver_id')
-    op.create_foreign_key(
-        'fk_trips_driver_id_users', 'trips', 'users', ['driver_id'], ['id'],
-    )
+    _create_fk('fk_trips_driver_id_users', 'trips', 'users', ['driver_id'], ['id'])
 
-    op.create_check_constraint(
+    _create_check(
         'chk_trip_money', 'trips',
         'total_fare >= 0 AND platform_fee >= 0 AND driver_earnings >= 0 '
         'AND total_fare = platform_fee + driver_earnings '
         'AND (platform_fee_rate IS NULL OR platform_fee_rate >= 0)',
     )
-    op.create_check_constraint(
+    _create_check(
         'chk_trip_status', 'trips',
         "status IN ('requested', 'accepted', 'ongoing', 'completed', 'cancelled')",
     )
-    op.create_check_constraint(
+    _create_check(
         'chk_trip_vehicle_type', 'trips', "vehicle_type IN ('moto', 'auto')",
     )
     op.drop_index('ix_trips_status', table_name='trips')
@@ -331,22 +386,29 @@ def upgrade():
                 "UPDATE reviews SET role = 'driver' WHERE role IS NULL OR role = ''"
             )
         )
-    op.alter_column('reviews', 'role', existing_type=sa.String(10), nullable=False)
-    op.alter_column('reviews', 'from_user_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('reviews', 'to_user_id', existing_type=sa.Integer(), nullable=False)
+    _set_nullable('reviews', 'role', sa.String(10), False)
+    _set_nullable('reviews', 'from_user_id', sa.Integer(), False)
+    _set_nullable('reviews', 'to_user_id', sa.Integer(), False)
     _drop_fk('reviews', 'from_driver_id')
     _drop_fk('reviews', 'to_driver_id')
-    op.drop_column('reviews', 'from_driver_id')
-    op.drop_column('reviews', 'to_driver_id')
-    op.create_check_constraint('chk_review_rating', 'reviews', 'rating >= 1 AND rating <= 5')
-    op.create_check_constraint(
+    _drop_column('reviews', 'from_driver_id')
+    _drop_column('reviews', 'to_driver_id')
+    _create_check('chk_review_rating', 'reviews', 'rating >= 1 AND rating <= 5')
+    _create_check(
         'chk_review_role', 'reviews', "role IN ('driver', 'passenger')",
     )
-    op.create_unique_constraint(
+    _create_unique(
         'uq_review_once', 'reviews', ['trip_id', 'from_user_id', 'to_user_id'],
     )
 
     # ── wallet_transactions: user_id obligatorio + counterparty ──
+    # driver_id se reemplaza por counterparty_id: se agrega la columna nueva,
+    # se backfillea el mapeo legacy y luego se elimina driver_id. Un RENAME
+    # colisionaria con la columna ya creada en PostgreSQL (chk: DuplicateColumn).
+    op.add_column(
+        'wallet_transactions',
+        sa.Column('counterparty_id', sa.Integer(), nullable=True),
+    )
     if driver_map:
         for old_did, new_uid in driver_map.items():
             bind.execute(
@@ -363,14 +425,9 @@ def upgrade():
                 ),
                 {'u': new_uid, 'd': old_did},
             )
-    op.add_column(
-        'wallet_transactions',
-        sa.Column('counterparty_id', sa.Integer(), nullable=True),
-    )
     _drop_fk('wallet_transactions', 'driver_id')
-    op.alter_column(
-        'wallet_transactions', 'driver_id', new_column_name='counterparty_id',
-    )
+    op.drop_index('ix_wallet_transactions_driver_id', table_name='wallet_transactions')
+    _drop_column('wallet_transactions', 'driver_id')
     if _online():
         bind.execute(
             sa.text(
@@ -378,17 +435,19 @@ def upgrade():
                 'WHERE user_id IS NULL AND counterparty_id IS NOT NULL'
             )
         )
-    op.alter_column(
-        'wallet_transactions', 'user_id', existing_type=sa.Integer(), nullable=False,
-    )
-    op.create_foreign_key(
+    _set_nullable('wallet_transactions', 'user_id', sa.Integer(), False)
+    _create_fk(
         'fk_wallet_transactions_counterparty_id_users',
         'wallet_transactions', 'users', ['counterparty_id'], ['id'],
     )
-    op.drop_index('ix_wallet_transactions_driver_id', table_name='wallet_transactions')
     op.create_index('ix_wallet_user_recent', 'wallet_transactions', ['user_id', 'created_at'])
 
     # ── driver_payment_methods → driver_profile_id ──
+    # Mismo patrón que wallet: ADD + backfill + DROP (el RENAME colisiona en PG).
+    op.add_column(
+        'driver_payment_methods',
+        sa.Column('driver_profile_id', sa.Integer(), nullable=True),
+    )
     if driver_map:
         pid_by_did = {}
         for old_did, new_uid in driver_map.items():
@@ -406,14 +465,8 @@ def upgrade():
                 ),
                 {'p': pid, 'd': old_did},
             )
-    op.add_column(
-        'driver_payment_methods',
-        sa.Column('driver_profile_id', sa.Integer(), nullable=True),
-    )
     _drop_fk('driver_payment_methods', 'driver_id')
-    op.alter_column(
-        'driver_payment_methods', 'driver_id', new_column_name='driver_profile_id',
-    )
+    _drop_column('driver_payment_methods', 'driver_id')
     if _online():
         # columnas sin perfil valido se descartan (solo afecta datos legacy invalidos)
         bind.execute(
@@ -422,11 +475,10 @@ def upgrade():
                 '(SELECT id FROM driver_profiles)'
             )
         )
-    op.alter_column(
-        'driver_payment_methods', 'driver_profile_id', existing_type=sa.Integer(),
-        nullable=False,
+    _set_nullable(
+        'driver_payment_methods', 'driver_profile_id', sa.Integer(), False,
     )
-    op.create_foreign_key(
+    _create_fk(
         'fk_driver_payment_methods_driver_profile_id_driver_profiles',
         'driver_payment_methods', 'driver_profiles', ['driver_profile_id'], ['id'],
     )
@@ -454,14 +506,23 @@ def upgrade():
             )
     op.drop_column('refresh_tokens', 'user_type')
     op.drop_column('email_verifications', 'user_type')
-    op.create_foreign_key(
-        'fk_refresh_tokens_user_id_users', 'refresh_tokens', 'users', ['user_id'], ['id'],
-        ondelete='CASCADE',
-    )
-    op.create_foreign_key(
-        'fk_email_verifications_user_id_users', 'email_verifications', 'users',
+    _create_fk(
+        'fk_refresh_tokens_user_id_users', 'refresh_tokens', 'users',
         ['user_id'], ['id'], ondelete='CASCADE',
     )
+    _create_fk(
+        'fk_email_verifications_user_id_users', 'email_verifications',
+        'users', ['user_id'], ['id'], ondelete='CASCADE',
+    )
+
+    # la tabla legacy 'drivers' ya no forma parte del esquema unificado:
+    # se elimina si existe (el merge defensivo ya consolido sus datos y
+    # ninguna FK la referencia). El downgrade NO la recrea con datos.
+    if _online():
+        if _table_has(bind, 'drivers'):
+            op.drop_table('drivers')
+    else:
+        op.execute('DROP TABLE IF EXISTS drivers')
 
 
 # ───────────────────────── downgrade ─────────────────────────
@@ -471,16 +532,16 @@ def downgrade():
     driver_map = {}
 
     # trips
-    op.drop_constraint('chk_trip_money', 'trips', type_='check')
-    op.drop_constraint('chk_trip_status', 'trips', type_='check')
-    op.drop_constraint('chk_trip_vehicle_type', 'trips', type_='check')
+    _drop_named('check', 'chk_trip_money', 'trips')
+    _drop_named('check', 'chk_trip_status', 'trips')
+    _drop_named('check', 'chk_trip_vehicle_type', 'trips')
     op.drop_index('ix_trips_status_requested', table_name='trips')
     op.drop_index('ix_trips_passenger_recent', table_name='trips')
     op.drop_index('ix_trips_driver_recent', table_name='trips')
     op.create_index('ix_trips_status', 'trips', ['status'], unique=False)
     op.create_index('ix_trips_requested_at', 'trips', ['requested_at'], unique=False)
-    op.drop_constraint('fk_trips_vehicle_id_vehicles', 'trips', type_='foreignkey')
-    op.drop_constraint('fk_trips_driver_id_users', 'trips', type_='foreignkey')
+    _drop_named('foreignkey', 'fk_trips_vehicle_id_vehicles', 'trips')
+    _drop_named('foreignkey', 'fk_trips_driver_id_users', 'trips')
     op.drop_column('trips', 'vehicle_id')
     op.drop_column('trips', 'currency')
     op.drop_column('trips', 'driver_earnings')
@@ -489,48 +550,54 @@ def downgrade():
     op.alter_column('trips', 'total_fare', new_column_name='fare')
 
     # reviews
-    op.drop_constraint('uq_review_once', 'reviews', type_='unique')
-    op.drop_constraint('chk_review_rating', 'reviews', type_='check')
-    op.drop_constraint('chk_review_role', 'reviews', type_='check')
-    op.alter_column('reviews', 'from_user_id', existing_type=sa.Integer(), nullable=True)
-    op.alter_column('reviews', 'to_user_id', existing_type=sa.Integer(), nullable=True)
+    _drop_named('unique', 'uq_review_once', 'reviews')
+    _drop_named('check', 'chk_review_rating', 'reviews')
+    _drop_named('check', 'chk_review_role', 'reviews')
+    _set_nullable('reviews', 'from_user_id', sa.Integer(), True)
+    _set_nullable('reviews', 'to_user_id', sa.Integer(), True)
     op.add_column('reviews', sa.Column('from_driver_id', sa.Integer(), nullable=True))
     op.add_column('reviews', sa.Column('to_driver_id', sa.Integer(), nullable=True))
 
-    # wallet
+    # wallet: se restaura driver_id como columna propia (espejo del upgrade:
+    # ADD + copia best-effort de counterparty + DROP de counterparty_id)
     op.drop_index('ix_wallet_user_recent', table_name='wallet_transactions')
-    op.create_index('ix_wallet_transactions_driver_id', 'wallet_transactions', ['counterparty_id'])
-    op.create_index('ix_wallet_transactions_user_id', 'wallet_transactions', ['user_id'])
-    op.drop_constraint(
-        'fk_wallet_transactions_counterparty_id_users', 'wallet_transactions',
-        type_='foreignkey',
+    _drop_named(
+        'foreignkey', 'fk_wallet_transactions_counterparty_id_users',
+        'wallet_transactions',
     )
-    op.alter_column('wallet_transactions', 'user_id', existing_type=sa.Integer(), nullable=True)
-    op.alter_column(
-        'wallet_transactions', 'counterparty_id', new_column_name='driver_id',
-    )
-    op.drop_column('wallet_transactions', 'counterparty_id')
+    _set_nullable('wallet_transactions', 'user_id', sa.Integer(), True)
+    op.add_column('wallet_transactions', sa.Column('driver_id', sa.Integer(), nullable=True))
+    if _online():
+        bind.execute(
+            sa.text(
+                'UPDATE wallet_transactions SET driver_id = counterparty_id '
+                'WHERE counterparty_id IS NOT NULL'
+            )
+        )
+    op.create_index('ix_wallet_transactions_driver_id', 'wallet_transactions', ['driver_id'])
+    _drop_column('wallet_transactions', 'counterparty_id')
 
     # driver_payment_methods
     op.drop_index('ix_driver_payment_methods_driver_profile_id', table_name='driver_payment_methods')
-    op.drop_constraint(
-        'fk_driver_payment_methods_driver_profile_id_driver_profiles',
-        'driver_payment_methods', type_='foreignkey',
+    _drop_named(
+        'foreignkey', 'fk_driver_payment_methods_driver_profile_id_driver_profiles',
+        'driver_payment_methods',
     )
     op.alter_column(
         'driver_payment_methods', 'driver_profile_id', new_column_name='driver_id',
     )
-    op.create_foreign_key('driver_payment_methods_driver_id_fkey', 'driver_payment_methods', 'drivers', ['driver_id'], ['id'])
+    if _table_has(_bind(), 'drivers'):
+        op.create_foreign_key('driver_payment_methods_driver_id_fkey', 'driver_payment_methods', 'drivers', ['driver_id'], ['id'])
 
     # tokens
-    op.drop_constraint('fk_refresh_tokens_user_id_users', 'refresh_tokens', type_='foreignkey')
-    op.drop_constraint('fk_email_verifications_user_id_users', 'email_verifications', type_='foreignkey')
+    _drop_named('foreignkey', 'fk_refresh_tokens_user_id_users', 'refresh_tokens')
+    _drop_named('foreignkey', 'fk_email_verifications_user_id_users', 'email_verifications')
     op.add_column('refresh_tokens', sa.Column('user_type', sa.String(length=10), nullable=False, server_default='user'))
     op.add_column('email_verifications', sa.Column('user_type', sa.String(length=10), nullable=False, server_default='user'))
 
     # users
     op.drop_index('ix_users_email_lower', table_name='users')
-    op.drop_constraint('chk_users_role', 'users', type_='check')
+    _drop_named('check', 'chk_users_role', 'users')
     op.drop_column('users', 'role')
 
     # tablas nuevas
