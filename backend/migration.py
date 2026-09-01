@@ -1,5 +1,4 @@
 import os
-import pymysql
 from dotenv import load_dotenv
 
 
@@ -232,6 +231,7 @@ def _parse_url(url):
 
 
 def _get_conn(url):
+    import pymysql
     host, port, user, password, database = _parse_url(url)
     if not host:
         return None

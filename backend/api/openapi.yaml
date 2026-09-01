@@ -17,7 +17,15 @@ info:
       Error:  {"success": false, "error": {"code": "CODE", "message": "..."}}
 tags:
   - name: auth
-    description: Registro, login, tokens y verificación de email
+    description: Registro, login, tokens, perfil, verificación de email, guidelines
+  - name: trips
+    description: Creación, ciclo de vida, status polling
+  - name: wallet
+    description: Billetera, recargas, comprobantes
+  - name: driver
+    description: Ubicación, online/offline, config del conductor
+  - name: geo
+    description: Geocodificación
 paths:
   /auth/register:
     post:
@@ -158,6 +166,39 @@ paths:
                         $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Error'
+  /auth/switch-mode:
+    post:
+      tags: [auth]
+      summary: Cambia el modo activo (solo usuarios con role 'both')
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: {type: string, enum: [passenger, driver]}
+      responses:
+        '200':
+          description: Modo cambiado. Devuelve access token nuevo (el refresh sigue válido).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  data:
+                    type: object
+                    properties:
+                      access_token: {type: string}
+                      active_mode: {type: string, enum: [passenger, driver]}
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: Rol no admite cambio de modo (FORBIDDEN) o sin perfil de conductor
   /auth/verify-email:
     post:
       tags: [auth]
@@ -178,7 +219,800 @@ paths:
           description: Email verificado
         '400':
           $ref: '#/components/responses/Error'
+  /trips:
+    post:
+      tags: [trips]
+      summary: Crea un viaje (modo pasajero). Idempotente vía header Idempotency-Key.
+      description: |
+        Header `Idempotency-Key` OBLIGATORIO (UUID recomendado): la misma
+        clave del mismo usuario devuelve 200 con el viaje original y
+        `duplicate: true` (TTL 24 h). El body `idempotency_key` está
+        deprecado (aceptado temporalmente; el header gana).
+        La distancia la calcula el backend (coordenadas → geocode de las
+        direcciones → fallback 1.0 km) y `company_id` lo asigna el backend
+        por membership de empresa activa (trial/active): el que envíe el
+        cliente se ignora.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripRequest'
+      responses:
+        '201':
+          description: Viaje creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTripResponse'
+        '200':
+          description: Replay idempotente (misma Idempotency-Key) — duplicate=true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTripResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trips/{id}:
+    get:
+      tags: [trips]
+      summary: Detalle del viaje (payload canónico). Solo participantes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Viaje
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripData'
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+  /trips/available:
+    get:
+      tags: [trips]
+      summary: Viajes requested cercanos (modo conductor).
+      description: |
+        lat/lng del query tienen prioridad; si faltan se usa la posición
+        persistida del perfil; sin ninguna → LOCATION_REQUIRED. Expira
+        primero los requested con más de 5 minutos (cancelled_by=system).
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: lat, in: query, schema: {type: number}}
+        - {name: lng, in: query, schema: {type: number}}
+        - {name: radius, in: query, schema: {type: number, default: 10}, description: km}
+        - {name: vehicle_type, in: query, schema: {type: string, enum: [moto, auto]}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: limit, in: query, schema: {type: integer, default: 20, maximum: 100}}
+      responses:
+        '200':
+          description: Items ordenados por distancia al pickup
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AvailableTrip'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+                      driver_lat: {type: number, nullable: true}
+                      driver_lng: {type: number, nullable: true}
+        '400': { $ref: '#/components/responses/Error' }
+  /trips/{id}/accept:
+    post:
+      tags: [trips]
+      summary: Conductor toma el viaje (claim atómico). Requiere online+libre+approved.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Aceptado — is_busy=true en el conductor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripData'
+        '403': { $ref: '#/components/responses/Error', description: NOT_VERIFIED }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error', description: TRIP_NOT_AVAILABLE o NOT_ONLINE }
+  /trips/{id}/reject:
+    post:
+      tags: [trips]
+      summary: Rechaza un viaje ofrecido (sin efecto sobre él).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: '{ok: true}'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+  /trips/{id}/start:
+    post:
+      tags: [trips]
+      summary: Inicia el viaje (accepted → ongoing). Solo conductor asignado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200': 
+          description: ongoing con started_at
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripData'
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error', description: INVALID_TRANSITION }
+  /trips/{id}/complete:
+    post:
+      tags: [trips]
+      summary: Cobra y finaliza (ongoing → completed) vía finalize_trip().
+      description: |
+        Body {} usa el payment_method elegido por el pasajero. El conductor
+        puede confirmar el método real con {"method": ...} (misma regla que
+        la web). Billetera sin saldo → INSUFFICIENT_BALANCE y el viaje
+        sigue ongoing para reintentar con otro método. Retry idempotente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [efectivo, mercadopago, transferencia, tarjeta, billetera]
+      responses:
+        '200':
+          description: completed con fare.final y wallet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripData'
+        '400': { $ref: '#/components/responses/Error', description: INVALID_PAYMENT_METHOD o INSUFFICIENT_BALANCE }
+        '409': { $ref: '#/components/responses/Error', description: INVALID_TRANSITION }
+  /trips/{id}/cancel:
+    post:
+      tags: [trips]
+      summary: Cancela (pasajero dueño o conductor asignado). Libera is_busy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: cancelled con cancelled_by=passenger|driver
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripData'
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error', description: TRIP_FINALIZED }
+  /trips/{id}/rate:
+    post:
+      tags: [trips]
+      summary: Califica el viaje completado (1 vez por rol).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: {type: integer, minimum: 1, maximum: 5}
+                comment: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: '{ok: true}'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400': { $ref: '#/components/responses/Error', description: INVALID_RATING }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error', description: TRIP_NOT_COMPLETED o ALREADY_RATED }
+  /trips/{id}/eta:
+    get:
+      tags: [trips]
+      summary: ETA del conductor asignado hacia el pickup.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Valores null si aún no hay conductor o posición
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  data:
+                    type: object
+                    properties:
+                      eta_min: {type: integer, nullable: true}
+                      distance_km: {type: number, nullable: true}
+                      driver_lat: {type: number, nullable: true}
+                      driver_lng: {type: number, nullable: true}
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /wallet:
+    get:
+      tags: [wallet]
+      summary: Saldo y currency del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          balance: {type: string, example: "1234.50"}
+                          currency: {type: string, example: "ARS"}
+        '401': { $ref: '#/components/responses/Error' }
+  /wallet/transactions:
+    get:
+      tags: [wallet]
+      summary: Movimientos de billetera (paginados, filtro por tipo)
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: type, in: query, schema: {type: string}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: limit, in: query, schema: {type: integer, default: 20, maximum: 100}}
+      responses:
+        '200':
+          description: Lista de transacciones
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: {type: object}
+                          pagination: {$ref: '#/components/schemas/Pagination'}
+        '401': { $ref: '#/components/responses/Error' }
+  /wallet/topups:
+    get:
+      tags: [wallet]
+      summary: Listar recargas propias (paginadas, filtro por status)
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [pending, confirmed, expired]}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: limit, in: query, schema: {type: integer, default: 20, maximum: 100}}
+      responses:
+        '200':
+          description: Lista de topups
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: {type: object}
+                          pagination: {$ref: '#/components/schemas/Pagination'}
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [wallet]
+      summary: Crear recarga de billetera
+      description: |
+        `mercadopago` → crea preference y devuelve `init_point`.
+        `cvu` / `bank` → persiste topup manual (init_point: null).
+        Amount 100–500.000.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, method]
+              properties:
+                amount: {type: number, minimum: 100, maximum: 500000}
+                method: {type: string, enum: [mercadopago, cvu, bank]}
+      responses:
+        '201':
+          description: Topup creado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          topup:
+                            type: object
+                            properties:
+                              id: {type: integer}
+                              amount: {type: string}
+                              method: {type: string}
+                              status: {type: string}
+                              admin_note: {type: string, nullable: true}
+                              init_point: {type: string, nullable: true}
+                              created_at: {type: string, nullable: true}
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+  /wallet/topups/{id}:
+    get:
+      tags: [wallet]
+      summary: Detalle de una recarga propia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Detalle topup
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          topup: {type: object}
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  # ─── A2: Trip status polling ───
+  /trips/{id}/status:
+    get:
+      tags: [trips]
+      summary: Estado del viaje + ubicación del conductor (polling cada 5s)
+      description: Payload ligero optimizado para polling. Solo participantes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Estado del viaje
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: {type: integer}
+                          status: {type: string}
+                          vehicle_type: {type: string}
+                          pickup_address: {type: string}
+                          dropoff_address: {type: string}
+                          pickup_lat: {type: number, nullable: true}
+                          pickup_lng: {type: number, nullable: true}
+                          dropoff_lat: {type: number, nullable: true}
+                          dropoff_lng: {type: number, nullable: true}
+                          fare: {type: string}
+                          distance_km: {type: number, nullable: true}
+                          payment_method: {type: string}
+                          payment_status: {type: string, nullable: true}
+                          payment_method_collected: {type: string, nullable: true}
+                          driver:
+                            type: object
+                            nullable: true
+                            properties:
+                              id: {type: integer}
+                              name: {type: string}
+                              phone: {type: string}
+                              profile_picture: {type: string, nullable: true}
+                              rating_avg: {type: number}
+                              rating_count: {type: integer}
+                              lat: {type: number, nullable: true}
+                              lng: {type: number, nullable: true}
+                              vehicle_info:
+                                type: object
+                                nullable: true
+                                properties:
+                                  type: {type: string}
+                                  placa: {type: string}
+                                  marca: {type: string}
+                                  modelo: {type: string}
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  # ─── A3: Auth profile + password + guidelines ───
+  /auth/profile:
+    put:
+      tags: [auth]
+      summary: Editar nombre y teléfono del perfil
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string, minLength: 2}
+                phone: {type: string}
+      responses:
+        '200':
+          description: Perfil actualizado
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/profile/photo:
+    post:
+      tags: [auth]
+      summary: Subir foto de perfil (base64)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: {type: string, description: Base64 o data URL}
+      responses:
+        '200':
+          description: Foto subida
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          profile_picture: {type: string}
+        '400': { $ref: '#/components/responses/Error' }
+  /auth/password:
+    post:
+      tags: [auth]
+      summary: Cambiar contraseña
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: {type: string}
+                new_password: {type: string, minLength: 8}
+      responses:
+        '200':
+          description: Contraseña cambiada
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/guidelines:
+    get:
+      tags: [auth]
+      summary: Verificar si el usuario aceptó las guidelines
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estado de guidelines
+    post:
+      tags: [auth]
+      summary: Aceptar las guidelines de la comunidad
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Guidelines aceptadas
+  # ─── A1: Driver endpoints ───
+  /drivers/location:
+    post:
+      tags: [driver]
+      summary: Conductor envía su ubicación actual
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat: {type: number, minimum: -90, maximum: 90}
+                lng: {type: number, minimum: -180, maximum: 180}
+      responses:
+        '200':
+          description: Ubicación actualizada
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error', description: NOT_ONLINE }
+  /drivers/online:
+    post:
+      tags: [driver]
+      summary: Toggle online/offline del conductor
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_online: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Estado actualizado
+  /drivers/nearby:
+    get:
+      tags: [driver]
+      summary: Conductores online + libres cerca de una posición
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: lat, in: query, required: true, schema: {type: number}}
+        - {name: lng, in: query, required: true, schema: {type: number}}
+        - {name: radius, in: query, schema: {type: number, default: 10}, description: km}
+        - {name: vehicle_type, in: query, schema: {type: string, enum: [moto, auto]}}
+      responses:
+        '200':
+          description: Lista de conductores cercanos ordenados por distancia
+        '400': { $ref: '#/components/responses/Error' }
+  # ─── A4: Driver config ───
+  /driver/accepted-payments:
+    get:
+      tags: [driver]
+      summary: Métodos de pago aceptados por el conductor
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de métodos aceptados
+    put:
+      tags: [driver]
+      summary: Actualizar métodos de pago aceptados
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accepted_payments:
+                  type: array
+                  items: {type: string, enum: [efectivo, mercadopago, transferencia, tarjeta, billetera]}
+      responses:
+        '200':
+          description: Métodos actualizados
+  /driver/qr:
+    post:
+      tags: [driver]
+      summary: Subir imagen de QR de MercadoPago (base64)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: {type: string, description: Base64 o data URL}
+      responses:
+        '200':
+          description: QR subido
+        '400': { $ref: '#/components/responses/Error' }
+  /driver/payment-methods:
+    get:
+      tags: [driver]
+      summary: Listar métodos de cobro del conductor
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de métodos de cobro
+    post:
+      tags: [driver]
+      summary: Agregar método de cobro
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: {type: string, enum: [card, mercadopago, transfer]}
+                details: {type: object}
+      responses:
+        '201':
+          description: Método creado
+  /driver/payment-methods/{method_id}:
+    delete:
+      tags: [driver]
+      summary: Eliminar método de cobro
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: method_id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Eliminado
+        '404': { $ref: '#/components/responses/Error' }
+  # ─── A5: Geocode + Reviews + Favorites + Voucher ───
+  /geo/geocode:
+    get:
+      tags: [geo]
+      summary: Geocodificación Nominatim (proxy)
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string}, description: Dirección a buscar}
+      responses:
+        '200':
+          description: Coordenadas
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          lat: {type: number}
+                          lng: {type: number}
+                          display_name: {type: string}
+        '404': { $ref: '#/components/responses/Error', description: No encontrado }
+  /users/{user_id}/reviews:
+    get:
+      tags: [auth]
+      summary: Reseñas de un usuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: {type: integer}
+        - {name: role, in: query, schema: {type: string, enum: [driver, passenger]}, description: Filtrar por rol del rater}
+      responses:
+        '200':
+          description: Lista de reseñas
+  /favorites:
+    get:
+      tags: [auth]
+      summary: Rutas frecuentes del pasajero (≥3 usos)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de favoritos
+  /wallet/topups/{topup_id}/voucher:
+    post:
+      tags: [wallet]
+      summary: Subir comprobante de transferencia (base64)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: topup_id
+          in: path
+          required: true
+          schema: {type: integer}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: {type: string, description: Base64 o data URL}
+      responses:
+        '200':
+          description: Voucher subido
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  # ─── List trips (undocumented) ───
+  /trips:
+    get:
+      tags: [trips]
+      summary: Listar viajes propios (paginado)
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: role, in: query, schema: {type: string, enum: [passenger, driver]}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: limit, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200':
+          description: Viajes propios
 components:
+  parameters:
+    TripId:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer}
   securitySchemes:
     bearerAuth:
       type: http
@@ -271,3 +1105,127 @@ components:
             user:
               $ref: '#/components/schemas/User'
             verification_sent: {type: boolean}
+    CreateTripRequest:
+      type: object
+      required: [pickup_address, dropoff_address]
+      properties:
+        pickup_address: {type: string, example: 'Av. Siempre Viva 742'}
+        dropoff_address: {type: string, example: 'Plaza Mayor'}
+        pickup_lat: {type: number, nullable: true}
+        pickup_lng: {type: number, nullable: true}
+        dropoff_lat: {type: number, nullable: true}
+        dropoff_lng: {type: number, nullable: true}
+        vehicle_type: {type: string, enum: [moto, auto], default: moto}
+        payment_method:
+          type: string
+          enum: [efectivo, mercadopago, transferencia, tarjeta, billetera]
+          default: efectivo
+        idempotency_key:
+          type: string
+          deprecated: true
+          description: Deprecado — usar el header Idempotency-Key
+    FareBreakdown:
+      type: object
+      description: Dinero como string decimal; platform_fee_rate null = comisión desactivada
+      properties:
+        total_fare: {type: string, example: '11.25'}
+        platform_fee: {type: string, example: '0.56'}
+        platform_fee_rate: {type: string, nullable: true, example: '0.05'}
+        driver_earnings: {type: string, example: '10.69'}
+        currency: {type: string, example: ARS}
+    Trip:
+      type: object
+      properties:
+        id: {type: integer}
+        status: {type: string, enum: [requested, accepted, ongoing, completed, cancelled]}
+        vehicle_type: {type: string, enum: [moto, auto]}
+        pickup_address: {type: string}
+        dropoff_address: {type: string}
+        pickup_lat: {type: number, nullable: true}
+        pickup_lng: {type: number, nullable: true}
+        dropoff_lat: {type: number, nullable: true}
+        dropoff_lng: {type: number, nullable: true}
+        distance_km: {type: number, nullable: true}
+        duration_min: {type: integer, nullable: true}
+        payment_method: {type: string}
+        company_id: {type: integer, nullable: true}
+        requested_at: {type: string, format: date-time, nullable: true}
+        started_at: {type: string, format: date-time, nullable: true}
+        completed_at: {type: string, format: date-time, nullable: true}
+        cancelled_by: {type: string, nullable: true}
+        fare:
+          type: object
+          properties:
+            estimate:
+              $ref: '#/components/schemas/FareBreakdown'
+            final:
+              $ref: '#/components/schemas/FareBreakdown'
+              nullable: true
+              description: Solo cuando status == completed
+        wallet:
+          type: object
+          description: Etapa 4 — hoy charged es siempre false al crear
+          properties:
+            charged: {type: boolean}
+            passenger_txn_id: {type: integer, nullable: true}
+            driver_txn_id: {type: integer, nullable: true}
+        passenger:
+          $ref: '#/components/schemas/User'
+        driver:
+          allOf:
+            - $ref: '#/components/schemas/User'
+          nullable: true
+          description: null hasta que un conductor acepte
+    CreateTripResponse:
+      type: object
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            trip:
+              $ref: '#/components/schemas/Trip'
+            duplicate: {type: boolean}
+    TripData:
+      type: object
+      description: Envoltorio estándar con el viaje
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            trip:
+              $ref: '#/components/schemas/Trip'
+    OkResponse:
+      type: object
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            ok: {type: boolean}
+    Pagination:
+      type: object
+      properties:
+        page: {type: integer}
+        limit: {type: integer}
+        total: {type: integer}
+        pages: {type: integer}
+    AvailableTrip:
+      type: object
+      description: Item ligero de GET /trips/available (contrato §5.2.4)
+      properties:
+        id: {type: integer}
+        pickup_address: {type: string}
+        dropoff_address: {type: string}
+        pickup_lat: {type: number, nullable: true}
+        pickup_lng: {type: number, nullable: true}
+        vehicle_type: {type: string, enum: [moto, auto]}
+        payment_method: {type: string}
+        fare:
+          type: object
+          properties:
+            estimate:
+              $ref: '#/components/schemas/FareBreakdown'
+        distance_km: {type: number, description: Distancia del conductor al pickup}
+        requested_at: {type: string, format: date-time}

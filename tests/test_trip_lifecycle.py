@@ -164,15 +164,21 @@ class TestTripLifecycle:
         csrf = _get_csrf(client)
         client.post(f'/driver/start/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
         csrf = _get_csrf(client)
-        rv = client.post(f'/driver/complete/{trip_id}', data={
-            'csrf_token': csrf,
-        }, follow_redirects=True)
-        assert rv.status_code == 200
-        assert b'completado' in rv.data
+        # Finalizar = cobrar: el viaje solo se completa tras registrar el pago
+        rv = client.post(f'/api/trip/{trip_id}/collect-payment', data=json.dumps({
+            'method': 'efectivo', 'csrf_token': csrf,
+        }), content_type='application/json')
+        assert rv.status_code == 200, f'Expected 200, got {rv.status_code}: {rv.data}'
+        data = rv.get_json()
+        assert data['success']
+        assert data['status'] == 'completed'
+        assert data['payment_method_collected'] == 'efectivo'
         with app.app_context():
             t = Trip.query.get(trip_id)
             assert t.status == 'completed'
             assert t.completed_at is not None
+            assert t.payment_status == 'paid'
+            assert t.paid_at is not None
 
     def test_06_cancel_trip(self, app, client):
         _create_both(app)

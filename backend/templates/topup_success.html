@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Validando pago — VAN{% endblock %}
+
+{% block content %}
+<div class="topup-wrap">
+  <div class="topup-card">
+    <div class="topup-icon" id="tp-icon">⏳</div>
+    <h1 id="tp-title">Validando pago...</h1>
+    <p id="tp-msg">Estamos confirmando tu recarga con MercadoPago.<br>No cierres esta ventana.</p>
+    <div class="topup-spinner" id="tp-spinner"></div>
+    <button id="tp-retry" class="topup-btn topup-btn-secondary hidden" onclick="verifyPayment()">Reintentar</button>
+    <a href="/dashboard" id="tp-back" class="topup-btn hidden">Volver a VAN</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .topup-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .topup-card {
+    background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.10);
+    padding: 40px 32px; max-width: 420px; width: 100%; text-align: center;
+    font-family: 'Inter', sans-serif;
+  }
+  .topup-icon { font-size: 48px; margin-bottom: 12px; }
+  .topup-card h1 { font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 8px; }
+  .topup-card p { color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+  .topup-spinner {
+    width: 36px; height: 36px; margin: 0 auto;
+    border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%;
+    animation: tp-spin .8s linear infinite;
+  }
+  @keyframes tp-spin { to { transform: rotate(360deg); } }
+  .topup-btn {
+    display: inline-block; margin-top: 16px; padding: 12px 24px; border-radius: 10px;
+    background: #2563eb; color: #fff; text-decoration: none; font-weight: 600; font-size: 14px;
+    border: none; cursor: pointer; font-family: inherit;
+  }
+  .topup-btn-secondary { background: #eef2ff; color: #2563eb; }
+  .hidden { display: none !important; }
+</style>
+
+<script>
+// TODO(mobile): en la app Flutter (Fase 2) este flujo corre dentro de un
+// WebView. Antes de validar, delegar el resultado al lado nativo por deep
+// link para que la app cierre el checkout y refresque la billetera:
+//   var bridge = window.flutter_inappwebview;
+//   if (bridge && bridge.callHandler) {
+//     location.replace('van://pago/exitoso?payment_id={{ payment_id }}');
+//   }
+// El deep link lo consume el router Flutter (go_router) registrado en el
+// AndroidManifest/iOS Info.plist con scheme van:// (APP_SCHEME del backend).
+
+var TP_PAYMENT_ID = '{{ payment_id }}';
+
+function tpSetState(icon, title, msg, opts) {
+  opts = opts || {};
+  document.getElementById('tp-icon').textContent = icon;
+  document.getElementById('tp-title').textContent = title;
+  document.getElementById('tp-msg').innerHTML = msg;
+  document.getElementById('tp-spinner').classList.toggle('hidden', !!opts.done);
+  document.getElementById('tp-back').classList.toggle('hidden', !opts.back);
+  document.getElementById('tp-retry').classList.toggle('hidden', !opts.retry);
+}
+
+function verifyPayment() {
+  if (!TP_PAYMENT_ID) {
+    tpSetState('⚠️', 'No pudimos identificar el pago',
+      'Volvé a VAN e intentá la recarga de nuevo.', { done: true });
+    return;
+  }
+  tpSetState('⏳', 'Validando pago...',
+    'Estamos confirmando tu recarga con MercadoPago.<br>No cierres esta ventana.');
+  fetch('/api/wallet/topup/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': window.CSRF_TOKEN || '{{ csrf_token }}'
+    },
+    body: JSON.stringify({ payment_id: TP_PAYMENT_ID })
+  })
+  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+  .then(function (res) {
+    if (res.ok && res.j.credited) {
+      var monto = res.j.amount ? '+ $' + Number(res.j.amount).toLocaleString('es-AR') + ' acreditados a tu billetera' : 'Tu saldo se actualizó.';
+      tpSetState('✅', 'Pago confirmado para tu viaje VAN', monto, { done: true, back: true });
+    } else if (res.ok) {
+      tpSetState('ℹ️', 'Recarga pendiente',
+        'El pago todavía no fue confirmado por MercadoPago.<br>Se acreditará automáticamente cuando llegue la confirmación.',
+        { done: true, back: true, retry: true });
+    } else {
+      tpSetState('❌', 'No pudimos verificar el pago',
+        (res.j && res.j.error ? res.j.error : 'Intentá de nuevo.') + '<br>Si el problema persiste, contactá soporte.',
+        { done: true, retry: true });
+    }
+  })
+  .catch(function () {
+    tpSetState('❌', 'Error de conexión',
+      'No pudimos comunicarnos con el servidor.<br>Verificá tu conexión y reintenta.', { done: true, retry: true });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', verifyPayment);
+</script>
+{% endblock %}

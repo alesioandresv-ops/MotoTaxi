@@ -10,6 +10,14 @@ os.environ['JWT_SECRET_KEY'] = 'test-jwt-secret-key'
 os.environ['FLASK_DEBUG'] = '0'
 os.environ['RATELIMIT_ENABLED'] = '0'
 
+# Hermeticidad: load_dotenv() en backend/app.py (override=False) puede
+# filtrar el backend/.env real (MP_ENV=test, tokens MP) al proceso de tests.
+# Precargamos sentinelas que dotenv respeta; cada test ajusta lo que necesita.
+os.environ.setdefault('MP_ENV', 'production')
+os.environ.setdefault('MERCADOPAGO_TEST_ACCESS_TOKEN', 'sentinel-test-token')
+os.environ.setdefault('MERCADOPAGO_TEST_PUBLIC_KEY', 'sentinel-test-pubkey')
+os.environ.setdefault('MERCADOPAGO_PUBLIC_KEY', 'sentinel-prod-pubkey')
+
 @pytest.fixture
 def app():
     from backend.app import create_app

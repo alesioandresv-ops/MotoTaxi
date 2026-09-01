@@ -45,11 +45,17 @@ def company_login_required(f):
 
 
 def get_mp_sdk():
-    token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
-    if not token:
+    """SDK con la credencial del entorno activo (MP_ENV). None si falta."""
+    from .services.mercadopago import MercadoPagoConfigError, get_sdk as _svc_sdk
+    try:
+        return _svc_sdk()
+    except MercadoPagoConfigError:
         return None
-    import mercadopago
-    return mercadopago.SDK(token)
+
+
+def mp_public_key():
+    from .services.mercadopago import mp_public_key as _svc_pub
+    return _svc_pub()
 
 
 def get_base_url():
@@ -128,7 +134,7 @@ def payment():
                            bank_holder=os.getenv('BANK_ACCOUNT_HOLDER', 'VAN SRL'),
                            bank_cuit=os.getenv('BANK_CUIT', ''),
                            bank_alias=os.getenv('BANK_ALIAS', ''),
-                           mp_public_key=os.getenv('MERCADOPAGO_PUBLIC_KEY', ''))
+                           mp_public_key=mp_public_key())
 
 
 @company_bp.route('/api/create_preference', methods=['POST'])
@@ -145,6 +151,9 @@ def create_preference():
     if not sdk:
         return jsonify({'error': 'Mercado Pago no configurado. Contacta al administrador.'}), 500
 
+    # App Flutter (Fase 2): header X-Client-Type: mobile → back_urls con deep links van://
+    client = 'mobile' if (request.headers.get('X-Client-Type') or '').strip().lower() == 'mobile' else 'web'
+    from .services.mercadopago import back_urls_for as _mp_back_urls
     preference_data = {
         'items': [{
             'title': f'Plan {label} — VAN para Empresas',
@@ -152,15 +161,17 @@ def create_preference():
             'currency_id': 'ARS',
             'unit_price': float(price),
         }],
-        'back_urls': {
-            'success': f'{get_base_url()}/company/payment/success',
-            'failure': f'{get_base_url()}/company/payment/failure',
-            'pending': f'{get_base_url()}/company/payment/pending',
-        },
-        # 'auto_return': 'approved',  # comentado para desarrollo local
+        'back_urls': _mp_back_urls(client, '/company/payment'),
         'external_reference': str(company.id),
-        # 'notification_url': f'{get_base_url()}/company/payment/webhook',  # comentado para desarrollo local
+        # CLAVE del redirect automático post-pago (~5 s) a back_urls.success.
+        'auto_return': 'approved',
     }
+    # El webhook es la única vía de activación automática de la suscripción;
+    # solo con BASE_URL público (MP no alcanza webhooks locales → la
+    # activación en dev queda manual vía admin_activate).
+    from .services.mercadopago import is_public_base_url as _mp_public_url
+    if _mp_public_url(get_base_url()):
+        preference_data['notification_url'] = f'{get_base_url()}/company/payment/webhook'
 
     try:
         preference = sdk.preference().create(preference_data)
@@ -205,13 +216,17 @@ def payment_pending():
 @company_bp.route('/payment/webhook', methods=['POST'])
 @limiter.limit("30 per minute")
 def payment_webhook():
+    # Firma manifest ts/v1 del SDK oficial (fail-closed con secret). El
+    # HMAC-SHA256 sobre el raw body era el esquema equivocado: rechazaría
+    # notificaciones legítimas de MP.
     webhook_secret = os.getenv('MP_WEBHOOK_SECRET', '')
     if webhook_secret:
-        x_signature = request.headers.get('x-signature', '')
-        raw_body = request.get_data(as_text=True)
-        expected = hmac.new(webhook_secret.encode(), raw_body.encode(), 'sha256').hexdigest()
-        if not hmac.compare_digest(x_signature, expected):
-            current_app.logger.warning("Webhook: firma HMAC inválida")
+        from .services.mercadopago import validate_webhook_signature
+        if not validate_webhook_signature(
+                request.headers.get('x-signature'),
+                request.headers.get('x-request-id'),
+                request.args.get('data.id')):
+            current_app.logger.warning("Webhook empresa: firma inválida")
             return jsonify({'status': 'ok'}), 403
 
     data = request.get_json(silent=True) or {}
@@ -243,10 +258,14 @@ def payment_webhook():
                             if transaction_amount < expected_price * 0.9:
                                 current_app.logger.warning(f"Webhook: payment amount {transaction_amount} below expected {expected_price} for company {company_id}")
                                 return jsonify({'status': 'ok'})
+                            # Dedup: retries del webhook no re-activan ni
+                            # pisan subscription_start.
+                            if comp.payment_reference == str(mp_id):
+                                return jsonify({'status': 'ok'})
                             comp.status = 'active'
                             comp.subscription_start = datetime.now(timezone.utc)
                             comp.payment_method = 'mercadopago'
-                            comp.payment_reference = mp_id
+                            comp.payment_reference = str(mp_id)
                             db.session.commit()
         except Exception as e:
             db.session.rollback()

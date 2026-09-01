@@ -1,9 +1,9 @@
 # Contrato API v1 — VAN (definitivo, backend-first para Flutter)
 
 - Estado: **APROBADO** (2026-08-10) — contrato definitivo. Implementado:
-  Etapa 0 (infraestructura API: errores, decorators, serializers, auth,
-  openapi) y migración 0003 (`driver_profiles.status`). Pendiente: Trips API
-  y módulos siguientes (numeración de implementación en VAN_MASTER_SPEC.md §7).
+  Etapa 0 (infraestructura API), migración 0003 (`driver_profiles.status`),
+  Etapa 2 — `POST /trips` + migración 0004 (idempotencia). Pendiente: ciclo de
+  vida de trips y módulos siguientes (numeración en VAN_MASTER_SPEC.md §7).
 - Fecha: 2026-08-10
 - Alcance: viajes, wallet/pagos, company, verificación de conductores,
   errores/paginación. **Ubicación en tiempo real (Socket.IO): fuera de esta
@@ -208,9 +208,10 @@ accept (hoy poll a `GET /trips/{id}`). El matching sigue 100% backend.
 // Replay con la misma Idempotency-Key → 200 con el MISMO trip y "duplicate": true
 ```
 
-Reglas: `vehicle_type ∈ {moto, auto}`; `payment_method ∈ {billetera,
-efectivo}` (mismo set `PAYMENT_TYPES` que la web); distancia calculada por
-el backend (coords o geocode de la dirección si faltan); fallback 1.0 km;
+Reglas: `vehicle_type ∈ {moto, auto}`; `payment_method ∈ {efectivo,
+mercadopago, transferencia, tarjeta, billetera}` (mismo set `PAYMENT_TYPES`
+que la web); distancia calculada por el backend (coords o geocode de la
+dirección si faltan); fallback 1.0 km;
 si el pasajero ya tiene un viaje `requested|accepted|ongoing` →
 `ACTIVE_TRIP_EXISTS`. Si el pasajero pertenece a empresa activa →
 `company_id` asignado por el backend (§10). `company_id` enviado por el
@@ -433,12 +434,12 @@ siempre consistentes):
   implementado). CVU/bank: admin confirma → mismo patrón.
 - El saldo solo aumenta por depósitos o por créditos de viaje pareados (I4).
 
-### 8.3 Columnas nuevas (migración 0003)
+### 8.3 Columnas nuevas (migración 0004; el contrato original las ubicaba en 0003)
 - `wallet_transactions.payment_ref` (string, nullable) — agrupa la pareja
-  débito/crédito.
+  débito/crédito. **Aún no creada**: entra con la etapa de wallet (Etapa 4).
 - `trips.idempotency_key` (nullable, único por pasajero) — trazabilidad
-  (mecanismo principal = header, §11).
-- Tabla `api_idempotency_keys` — almacén de respuestas para replays.
+  (mecanismo principal = header, §11). ✅ Creada (0004).
+- Tabla `api_idempotency_keys` — almacén de respuestas para replays. ✅ Creada (0004).
 
 ## 9. role='both' y active_mode
 
@@ -595,15 +596,17 @@ backfill (existentes → approved; nuevos → pending); `driver_view` expone
 **test_trips_service.py** (unit services): transiciones legales/ilegales
 de la máquina §6; invarianzas I1–I6 con dinero Decimal.
 
-**test_web_regression.py** (o suite existente): los 149 tests siguen
+**test_web_regression.py** (o suite existente): los 179 tests siguen
 pasando + smoke web (login dual, select-mode, dashboard, admin, pay-driver
 web intacto).
 
 ---
 
 Estado actual: la **Etapa 0** (infraestructura API: errores, decorators,
-serializers, auth, openapi) y la **migración 0003** están completadas. El
-seguimiento de implementación usa Etapa 1 = migración 0003 y **Etapa 2 =
+serializers, auth, openapi), la **migración 0003**, la **Etapa 2 — Trips
+API (`POST /trips` + migración 0004 de idempotencia)** están completadas.
+El seguimiento de implementación usa Etapa 1 = migración 0003 y **Etapa 2 =
 Trips API** (numeración en VAN_MASTER_SPEC.md §7); los módulos 1–7 de este
 contrato se implementan en commits pequeños, reversibles y con la suite en
-verde al final de cada uno.
+verde al final de cada uno. Próximo incremento: **Etapa 3 — ciclo de vida de
+trips** (accept/reject/start/complete/cancel/rate/eta/list).

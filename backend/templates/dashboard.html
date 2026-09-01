@@ -437,6 +437,9 @@
             <div class="trip-item-right">
               <p class="trip-fare">${{ "%.2f"|format(trip.fare) }}</p>
               <span class="badge badge-{{ trip.status }}">{{ trip.status|status_label }}</span>
+              {% if trip.payment_status == 'paid' %}
+              <span style="font-size:0.7rem;color:var(--success,#16a34a);">✓ Pagado{% if trip.payment_method_collected %} · {{ trip.payment_method_collected|payment_label }}{% endif %}</span>
+              {% endif %}
               {% if trip.status == 'completed' %}
               <button class="btn-ghost-sm" onclick="rateTrip({{ trip.id }}, 'passenger')" style="margin-top:4px;">⭐ Calificar</button>
               {% endif %}
@@ -513,10 +516,8 @@
               </form>
               <button class="btn btn-danger btn-block" onclick="cancelTrip({{ active_trip.id }})" style="margin-top:8px;">Cancelar viaje</button>
               {% elif active_trip.status == 'ongoing' %}
-              <form method="post" action="/driver/complete/{{ active_trip.id }}" style="display:inline;width:100%;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-success btn-lg btn-block">✅ Completar viaje</button>
-              </form>
+              <button type="button" class="btn btn-success btn-lg btn-block" onclick="openFinalizeModal()">🏁 Finalizar Viaje</button>
+              <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;margin-top:6px;">Se abrirá el cobro según el método del pasajero</p>
               {% endif %}
             </div>
           </div>
@@ -604,6 +605,9 @@
               <div class="trip-item" style="padding:10px 14px;">
                 <div class="trip-item-info">
                   <p style="font-size:0.8rem;"><strong>{{ trip.pickup_address }}</strong> → <span style="color:var(--text-muted);">{{ trip.dropoff_address }}</span></p>
+                  {% if trip.payment_method_collected %}
+                  <span style="font-size:0.7rem;color:var(--text-muted);">{{ trip.payment_method_collected|payment_label }}</span>
+                  {% endif %}
                 </div>
                 <div class="trip-item-right">
                   <span style="color:var(--success);font-weight:700;font-size:0.9rem;">${{ "%.2f"|format(trip.fare) }}</span>
@@ -732,22 +736,58 @@
   </div>
 </div>
 
-<!-- ═══════ MercadoPago QR Modal ═══════ -->
-<div id="mp-qr-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-content" style="max-width:380px;text-align:center;">
-    <div class="modal-header" style="justify-content:center;">
-      <h3>💙 Pago con MercadoPago</h3>
+<!-- ═══════ Finalizar Viaje: Modal de Cobro (conductor) ═══════ -->
+{% if user_type == 'driver' and active_trip and active_trip.status == 'ongoing' %}
+{% set pm_labels = {'efectivo':'💵 Efectivo','mercadopago':'💙 MercadoPago','transferencia':'🏦 Transferencia','tarjeta':'💳 Tarjeta','billetera':'💰 Billetera'} %}
+<div id="finalize-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:440px;">
+    <div class="modal-header">
+      <h3>🏁 Cobrar viaje</h3>
+      <button class="btn-ghost-sm" onclick="closeModal('finalize-modal')">✕</button>
     </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
-      <p style="color:var(--text-muted);">Escaneá el QR para pagar</p>
-      <div id="mp-qr-image-container" style="padding:12px;background:#fff;border-radius:var(--radius-sm);">
-        <div style="color:#333;">QR del conductor</div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:0.85rem;color:var(--text-muted);">Total a cobrar</div>
+        <div style="font-size:2rem;font-weight:800;color:var(--primary-light);">${{ "%.2f"|format(active_trip.fare) }}</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);">Estimado — se ajusta a la duración real al confirmar</div>
       </div>
-      <div style="font-size:1.5rem;font-weight:800;color:var(--primary-light);" id="mp-qr-fare">$0.00</div>
-      <button class="btn btn-primary btn-block" onclick="document.getElementById('mp-qr-modal').style.display='none'">Cerrar</button>
+
+      <div class="input-group">
+        <label>💳 Método de pago</label>
+        <select id="collect-method-select">
+          {% for key, label in pm_labels.items() %}
+          <option value="{{ key }}" {% if active_trip.payment_method == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-muted);margin:4px 0 12px;">
+        El pasajero eligió <strong>{{ pm_labels.get(active_trip.payment_method, active_trip.payment_method or '—') }}</strong>.
+        Podés cambiarlo si pagó por otro medio.
+      </p>
+
+      {% if active_trip.payment_method == 'billetera' %}
+      <div style="font-size:0.8rem;background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:12px;">
+        💰 Billetera debita el saldo del pasajero automáticamente. Si no le alcanza, elegí otro método.
+      </div>
+      {% endif %}
+
+      <div id="collect-qr-box" style="display:none;text-align:center;margin-bottom:12px;">
+        {% if driver.mercadopago_qr %}
+        <img src="{{ driver.mercadopago_qr }}" alt="QR MercadoPago" style="max-width:180px;border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <p style="font-size:0.78rem;color:var(--text-muted);">Mostrá este QR para que el pasajero escanee y confirmá al recibir</p>
+        {% else %}
+        <p style="font-size:0.8rem;color:#92400e;background:#fef3c7;padding:8px;border-radius:var(--radius-sm);">No tenés QR de MercadoPago cargado. Subilo desde Perfil o cobrá por otro medio.</p>
+        {% endif %}
+      </div>
+
+      <div id="collect-error" style="display:none;color:#b91c1c;background:#fee2e2;padding:10px;border-radius:var(--radius-sm);font-size:0.85rem;margin-bottom:12px;"></div>
+
+      <button class="btn btn-success btn-lg btn-block" id="confirm-collect-btn" onclick="confirmCollect({{ active_trip.id }})">✅ Confirmar cobro y finalizar</button>
+      <button class="btn btn-ghost btn-block" onclick="closeModal('finalize-modal')" style="margin-top:8px;">Volver</button>
     </div>
   </div>
 </div>
+{% endif %}
 
 {% endblock %}
 
@@ -1563,12 +1603,13 @@ function cancelTrip(tripId) {
       if (data.error) return;
       var _label = {requested:'Solicitado',accepted:'Aceptado',ongoing:'En curso',completed:'Completado',cancelled:'Cancelado'}[data.status] || data.status;
       if (data.status !== '{{ current_trip.status }}') {
-        showToast('¡Tu viaje cambió a: ' + _label + '!', 'success');
-        if (data.status === 'completed' && data.payment_method === 'mercadopago' && data.driver) {
-          var qrUrl = data.driver.mercadopago_qr || (data.driver.vehicle_info && data.driver.vehicle_info.mercadopago_qr);
-          setTimeout(function() { showMPQRModal(qrUrl, data.fare); }, 1500);
+        if (data.status === 'completed') {
+          var paidWith = data.payment_method_collected ? ' · ' + data.payment_method_collected : '';
+          showToast('🏁 Viaje finalizado — pago registrado' + paidWith, 'success');
+        } else {
+          showToast('¡Tu viaje cambió a: ' + _label + '!', 'success');
         }
-        setTimeout(function() { window.location.reload(); }, 3000);
+        setTimeout(function() { window.location.reload(); }, 2500);
       }
       if (data.driver && data.driver.lat) {
         updateDriverOnPassengerMap(data.driver.lat, data.driver.lng);
@@ -1609,8 +1650,8 @@ function cancelTrip(tripId) {
 })();
 {% endif %}
 
-// ─── Driver Active Trip Polling ───
-{% if user_type == 'driver' and active_trip and active_trip.status == 'accepted' %}
+// ─── Driver Active Trip Polling (accepted Y ongoing: detecta cancelaciones) ───
+{% if user_type == 'driver' and active_trip and active_trip.status in ['accepted', 'ongoing'] %}
 (function pollDriverActive() {
   apiFetch('/api/trip/{{ active_trip.id }}/status')
     .then(function(r) { return r.json(); })
@@ -1704,18 +1745,64 @@ function submitReview() {
   });
 }
 
-// ─── MercadoPago QR Modal ───
-function showMPQRModal(qrUrl, fare) {
-  var container = document.getElementById('mp-qr-image-container');
-  if (qrUrl) {
-    var safeUrl = escapeHtml(qrUrl);
-    container.innerHTML = '<img src="' + safeUrl + '" style="max-width:220px;max-height:220px;border-radius:8px;">';
-  } else {
-    container.innerHTML = '<p style="color:#666;padding:20px;">El conductor no tiene QR configurado. Paga en efectivo o coordina con el conductor.</p>';
-  }
-  document.getElementById('mp-qr-fare').textContent = '$' + (fare || '0.00');
-  document.getElementById('mp-qr-modal').style.display = 'flex';
+// ─── Finalizar Viaje: cobro al pasajero (conductor) ───
+{% if user_type == 'driver' and active_trip and active_trip.status == 'ongoing' %}
+function openFinalizeModal() {
+  document.getElementById('finalize-modal').style.display = 'flex';
+  updateCollectQrVisibility();
 }
+
+function updateCollectQrVisibility() {
+  var sel = document.getElementById('collect-method-select');
+  var box = document.getElementById('collect-qr-box');
+  if (!sel || !box) return;
+  box.style.display = sel.value === 'mercadopago' ? 'block' : 'none';
+}
+
+(function initCollectMethodListener() {
+  var sel = document.getElementById('collect-method-select');
+  if (sel) sel.addEventListener('change', updateCollectQrVisibility);
+})();
+
+var _collecting = false;
+function confirmCollect(tripId) {
+  if (_collecting) return;
+  var method = document.getElementById('collect-method-select').value;
+  var btn = document.getElementById('confirm-collect-btn');
+  var errBox = document.getElementById('collect-error');
+  errBox.style.display = 'none';
+  btn.disabled = true;
+  _collecting = true;
+  apiFetch('/api/trip/' + tripId + '/collect-payment', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({method: method})
+  })
+  .then(function(r) { return r.json().then(function(d) { return {status: r.status, data: d}; }); })
+  .then(function(res) {
+    if (res.data && res.data.success) {
+      showToast('✅ Cobro de $' + Number(res.data.fare).toFixed(2) + ' registrado. ¡Califica a tu pasajero!', 'success');
+      setTimeout(function() { window.location.reload(); }, 1200);
+    } else {
+      _collecting = false;
+      btn.disabled = false;
+      var msgs = {
+        PAYMENT_INSUFFICIENT_BALANCE: '💰 Saldo insuficiente del pasajero. Elegí otro método de pago.',
+        INVALID_STATUS: 'El viaje ya no está en curso. Actualizando...',
+        INVALID_METHOD: 'Método de pago inválido.'
+      };
+      errBox.textContent = msgs[res.data.code] || res.data.error || 'Error al procesar el cobro';
+      errBox.style.display = 'block';
+    }
+  })
+  .catch(function() {
+    _collecting = false;
+    btn.disabled = false;
+    errBox.textContent = 'Error de conexión. Intentá de nuevo.';
+    errBox.style.display = 'block';
+  });
+}
+{% endif %}
 
 // ─── Passenger Map (active trip, Leaflet) ───
 {% if user_type == 'passenger' and current_trip and current_trip.status != 'requested' %}

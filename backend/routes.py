@@ -38,6 +38,10 @@ from .services.fare import (
     vehicle_emoji,
     vehicle_label,
 )
+# NOTA: services.trips / services.wallet se importan DENTRO de las rutas que
+# los usan (import tardío): a nivel de módulo generan un ciclo
+# routes → services.trips → backend.api(__init__) → api.auth → backend.auth
+# → routes (mismo motivo del import tardío en create_trip).
 
 main_bp = Blueprint('main', __name__)
 
@@ -131,19 +135,6 @@ def parse_accepted_payments(raw):
     return ['efectivo']
 
 
-def cancel_stale_trips():
-    timeout = datetime.utcnow() - timedelta(minutes=5)
-    stale = Trip.query.filter(
-        Trip.status == 'requested',
-        Trip.requested_at < timeout
-    ).all()
-    for t in stale:
-        t.status = 'cancelled'
-        t.cancelled_by = 'system'
-    if stale:
-        db.session.commit()
-
-
 def get_driver_vehicle_info(user):
     """Info pública del conductor para APIs JSON (esquema plano legacy)."""
     if not user or not user.driver_profile:
@@ -229,6 +220,7 @@ def app_index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
+    from .services.trips import cancel_stale_trips
     cancel_stale_trips()
     mode = current_active_mode()
     user = current_user()
@@ -509,6 +501,10 @@ def driver_start(trip_id):
         flash('No puedes modificar este viaje.', 'danger')
         return redirect(url_for('main.dashboard'))
 
+    if trip.status != 'accepted':
+        flash('Este viaje ya no puede iniciarse.', 'warning')
+        return redirect(url_for('main.dashboard'))
+
     trip.status = 'ongoing'
     trip.started_at = datetime.now(timezone.utc)
     db.session.commit()
@@ -516,86 +512,58 @@ def driver_start(trip_id):
     return redirect(url_for('main.dashboard'))
 
 
-@main_bp.route('/driver/complete/<int:trip_id>', methods=['POST'])
+@main_bp.route('/api/trip/<int:trip_id>/collect-payment', methods=['POST'])
 @limiter.limit("20 per minute")
 @login_required
 @driver_session_required
 @csrf_required
-def driver_complete(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
-    if trip.driver_id != session['user_id']:
-        flash('No puedes completar este viaje.', 'danger')
-        return redirect(url_for('main.dashboard'))
+def api_trip_collect_payment(trip_id):
+    """Cobra el viaje y lo finaliza (única vía hacia `completed`).
 
-    trip.status = 'completed'
-    trip.completed_at = datetime.now(timezone.utc)
-    if trip.started_at:
-        started = trip.started_at.replace(tzinfo=None) if trip.started_at.tzinfo else trip.started_at
-        completed = trip.completed_at.replace(tzinfo=None) if trip.completed_at.tzinfo else trip.completed_at
-        delta = completed - started
-        trip.duration_min = max(1, int(delta.total_seconds() / 60))
-        fare_fields = build_fare(float(trip.distance_km or 0), trip.duration_min, trip.vehicle_type)
-        trip.total_fare = fare_fields['total_fare']
-        trip.platform_fee = fare_fields['platform_fee']
-        trip.platform_fee_rate = fare_fields['platform_fee_rate']
-        trip.driver_earnings = fare_fields['driver_earnings']
-        trip.currency = fare_fields['currency']
+    Body: {"method": efectivo|mercadopago|transferencia|tarjeta|billetera}.
+    El método puede diferir del elegido por el pasajero (decisión de
+    producto: el conductor ajusta según cómo pagó realmente). Con
+    billetera sin saldo → 409 PAYMENT_INSUFFICIENT_BALANCE y el viaje
+    queda en `ongoing` para reintentar con otro método.
+    """
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({'error': 'Viaje no encontrado'}), 404
 
-    profile = db.session.query(DriverProfile).filter_by(user_id=session['user_id']).with_for_update().first()
-    profile.is_busy = False
+    driver = db.session.query(User).filter_by(id=session['user_id']).first()
+    data = request.get_json(silent=True) or {}
+    method = sanitize_input(data.get('method', ''))
 
-    total = as_decimal(trip.total_fare)
-    earnings = as_decimal(trip.driver_earnings)
-    if trip.payment_method == 'billetera' and total > 0:
-        passenger = db.session.query(User).filter_by(id=trip.passenger_id).with_for_update().first()
-        if passenger and as_decimal(passenger.balance) >= total:
-            passenger.balance = round_money(as_decimal(passenger.balance) - total)
-            driver = db.session.query(User).filter_by(id=session['user_id']).with_for_update().first()
-            driver.balance = round_money(as_decimal(driver.balance) + earnings)
-            db.session.add(WalletTransaction(
-                user_id=passenger.id, counterparty_id=session['user_id'],
-                amount=-total, type='trip_payment',
-                trip_id=trip.id, description=f'Viaje #{trip.id}'
-            ))
-            db.session.add(WalletTransaction(
-                user_id=session['user_id'], counterparty_id=passenger.id,
-                amount=earnings, type='trip_payment',
-                trip_id=trip.id, description=f'Viaje #{trip.id}'
-            ))
-        elif passenger:
-            db.session.add(WalletTransaction(
-                user_id=passenger.id, amount=-total, type='trip_payment',
-                trip_id=trip.id, status='pending',
-                description=f'Viaje #{trip.id} — pago pendiente (saldo insuficiente)'
-            ))
-            flash('Saldo insuficiente del pasajero. Se registra como pendiente.', 'warning')
-
-    db.session.commit()
+    from .services.trips import TripFinalizeError, finalize_trip, upsert_favorite_route
 
     try:
-        fav = FavoriteAddress.query.filter_by(
-            user_id=trip.passenger_id,
-            pickup_address=trip.pickup_address,
-            dropoff_address=trip.dropoff_address
-        ).first()
-        if fav:
-            fav.count += 1
-        else:
-            existing_count = FavoriteAddress.query.filter_by(user_id=trip.passenger_id).count()
-            fav = FavoriteAddress(
-                user_id=trip.passenger_id,
-                name=f'Ruta Frecuente {existing_count + 1}',
-                pickup_address=trip.pickup_address,
-                dropoff_address=trip.dropoff_address,
-                count=1
-            )
-            db.session.add(fav)
+        summary = finalize_trip(trip, driver, method)
         db.session.commit()
+    except TripFinalizeError as exc:
+        db.session.rollback()
+        status = {
+            'FORBIDDEN': 403,
+            'INVALID_STATUS': 409,
+            'INVALID_METHOD': 400,
+            'PAYMENT_INSUFFICIENT_BALANCE': 409,
+        }.get(exc.code, 400)
+        return jsonify({'error': exc.message, 'code': exc.code}), status
     except Exception:
         db.session.rollback()
+        current_app.logger.exception(f"collect-payment trip={trip_id} error")
+        return jsonify({'error': 'Error al procesar el cobro'}), 500
 
-    flash('Viaje completado con éxito. ¡Califica a tu pasajero!', 'success')
-    return redirect(url_for('main.dashboard'))
+    # Best-effort con commit propio: un fallo no afecta al viaje ya cobrado.
+    upsert_favorite_route(trip)
+
+    return jsonify({
+        'success': True,
+        'trip_id': summary['trip_id'],
+        'status': summary['status'],
+        'payment_status': summary['payment_status'],
+        'payment_method_collected': summary['payment_method_collected'],
+        'fare': float(summary['total_fare'] or 0),
+    })
 
 
 @main_bp.route('/api/trip/<int:trip_id>/cancel', methods=['POST'])
@@ -775,6 +743,8 @@ def api_trip_status(trip_id):
         'fare': trip.total_fare,
         'distance_km': trip.distance_km,
         'payment_method': trip.payment_method,
+        'payment_status': trip.payment_status,
+        'payment_method_collected': trip.payment_method_collected,
         'driver': driver_info,
     })
 
@@ -808,6 +778,7 @@ def api_trip_eta(trip_id):
 @main_bp.route('/api/trips/available')
 @login_required
 def api_trips_available():
+    from .services.trips import cancel_stale_trips
     cancel_stale_trips()
     if is_driver_session():
         profile = current_driver_profile()
@@ -1399,50 +1370,99 @@ def api_wallet_topup():
         return jsonify({'error': 'Monto máximo $500.000'}), 400
 
     if method in ('mp_checkout', 'mercadopago'):
-        token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
-        if not token:
-            return jsonify({'error': 'MercadoPago no configurado'}), 500
-
-        import mercadopago
-        sdk = mercadopago.SDK(token)
-        base_url = os.getenv('BASE_URL', 'http://127.0.0.1:5000')
-
-        preference_data = {
-            "items": [{
-                "id": "topup",
-                "title": f"Recarga VAN - ${amount:.2f}",
-                "quantity": 1,
-                "unit_price": float(amount),
-                "currency_id": "ARS"
-            }],
-            "external_reference": str(session['user_id']),
-            "back_urls": {
-                "success": base_url + "/wallet/topup/success",
-                "failure": base_url + "/wallet/topup/failure",
-                "pending": base_url + "/wallet/topup/pending"
-            },
-            "statement_descriptor": "VAN RECARGA",
-            "expires": True,
-            "expiration_date_from": (datetime.now(timezone.utc)).isoformat(),
-            "expiration_date_to": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-        }
-
-        if '127.0.0.1' not in base_url and 'localhost' not in base_url:
-            preference_data["auto_return"] = "approved"
-
+        from backend.services.mercadopago import (
+            MercadoPagoAPIError,
+            MercadoPagoConfigError,
+            create_topup_preference,
+        )
+        # App Flutter (Fase 2): header X-Client-Type: mobile → back_urls con
+        # deep links van:// en vez de URLs https.
+        client = 'mobile' if (request.headers.get('X-Client-Type') or '').strip().lower() == 'mobile' else 'web'
         try:
-            result = sdk.preference().create(preference_data)
-            if result.get("status") in (200, 201):
-                init_point = result["response"].get("init_point")
-                return jsonify({"init_point": init_point})
-            else:
-                msg = result.get("response", {}).get("message", "Error desconocido")
-                return jsonify({"error": f"MP: {msg}"}), 500
-        except Exception as e:
+            init_point, _pref_topup_id = create_topup_preference(session['user_id'], amount, client=client)
+        except MercadoPagoConfigError as e:
+            return jsonify({'error': str(e)}), 500
+        except MercadoPagoAPIError as e:
             current_app.logger.error(f"Topup MP error: {e}")
+            return jsonify({"error": f"MP: {e}"}), 502
+        except Exception as e:
+            current_app.logger.error(f"Topup MP error inesperado: {e}")
             return jsonify({"error": "Error creando preferencia"}), 500
+        return jsonify({"init_point": init_point})
 
     return jsonify({"error": "Método no soportado"}), 400
+
+
+def _credit_mp_payment(mp_id, expected_user_id=None):
+    """Verifica el pago contra la API de MercadoPago y acredita el saldo.
+
+    Único punto de acreditación de recargas MP checkout (webhook IPN +
+    fallback de la ruta /wallet/topup/success). Dedup por
+    TopUpRequest.mp_payment_id confirmado → idempotente ante retries del
+    webhook o dobles redirects.
+
+    - expected_user_id: si viene (ruta web), exige que el pago pertenezca
+      a ese usuario; en el webhook (firma validada si hay secret) se confía
+      en la external_reference.
+    - NUNCA lanza: loguea y devuelve False ante cualquier error.
+    """
+    if mp_id in (None, ''):
+        return False
+    try:
+        mp_id_int = int(mp_id)
+    except (ValueError, TypeError):
+        return False
+
+    try:
+        from backend.services.mercadopago import MercadoPagoConfigError, get_sdk
+        try:
+            sdk = get_sdk()
+        except MercadoPagoConfigError:
+            return False
+        payment_info = sdk.payment().get(mp_id_int)
+        resp = payment_info.get('response', {}) if isinstance(payment_info, dict) else {}
+
+        if resp.get('status') != 'approved' or not resp.get('external_reference'):
+            return False
+        user_id = int(resp['external_reference'])
+        amount = Decimal(str(resp.get('transaction_amount', 0)))
+        if amount <= 0:
+            return False
+        if expected_user_id is not None and user_id != int(expected_user_id):
+            current_app.logger.warning(
+                f"Topup MP {mp_id_int}: pertenece a user={user_id}, "
+                f"no al de sesión ({expected_user_id}) — ignorado"
+            )
+            return False
+
+        user = db.session.query(User).filter_by(id=user_id).with_for_update().first()
+        if not user:
+            return False
+
+        existing = TopUpRequest.query.filter_by(
+            mp_payment_id=str(mp_id_int), status='confirmed'
+        ).first()
+        if existing:
+            return True  # ya acreditado antes → idempotente
+
+        user.balance = round_money(as_decimal(user.balance) + amount)
+        db.session.add(TopUpRequest(
+            user_id=user_id, amount=amount, method='mp_checkout',
+            mp_payment_id=str(mp_id_int), status='confirmed',
+            confirmed_at=datetime.now(timezone.utc),
+        ))
+        db.session.add(WalletTransaction(
+            user_id=user_id, amount=amount, type='deposit_mp',
+            reference=str(mp_id_int),
+            description=f'Recarga MP ${float(amount):.2f}',
+        ))
+        db.session.commit()
+        current_app.logger.info(f"Topup MP acreditado: user={user_id} ${amount}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Credit topup MP {mp_id} error: {e}")
+        return False
 
 
 @main_bp.route('/api/wallet/topup/webhook', methods=['GET', 'POST'])
@@ -1453,71 +1473,71 @@ def api_wallet_topup_webhook():
             return challenge
         return 'ok'
 
+    # Firma manifest ts/v1 (fail-closed si hay MP_WEBHOOK_SECRET). Sin secret
+    # (dev) se acepta y la acreditación queda protegida por la verificación
+    # server-side del pago contra la API de MP.
+    from backend.services.mercadopago import validate_webhook_signature
+    if not validate_webhook_signature(
+            request.headers.get('x-signature'),
+            request.headers.get('x-request-id'),
+            request.args.get('data.id')):
+        return jsonify({'status': 'forbidden'}), 403
+
     data = request.get_json(silent=True) or {}
     action = data.get('action')
     mp_id = data.get('data', {}).get('id')
 
-    if not mp_id:
+    # IPN de MP: solo nos interesan eventos de pago; cualquier otro payload
+    # se ACK-ea para que MP deje de reintentar.
+    if not mp_id or action not in ('payment.created', 'payment.updated'):
         return jsonify({'status': 'ok'})
 
-    try:
-        mp_id = int(mp_id)
-    except (ValueError, TypeError):
-        return jsonify({'status': 'ok'})
-
-    if action not in ('payment.created', 'payment.updated'):
-        return jsonify({'status': 'ok'})
-
-    token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
-    if not token:
-        return jsonify({'status': 'ok'})
-
-    try:
-        import mercadopago
-        sdk = mercadopago.SDK(token)
-        payment_info = sdk.payment().get(mp_id)
-        resp = payment_info.get('response', {})
-
-        if resp.get('status') == 'approved' and resp.get('external_reference'):
-            user_id = int(resp['external_reference'])
-            amount = Decimal(str(resp.get('transaction_amount', 0)))
-
-            user = db.session.query(User).filter_by(id=user_id).with_for_update().first()
-            if user and amount > 0:
-                existing = TopUpRequest.query.filter_by(
-                    mp_payment_id=str(mp_id), status='confirmed'
-                ).first()
-                if existing:
-                    return jsonify({'status': 'ok'})
-
-                user.balance = round_money(as_decimal(user.balance) + amount)
-                req = TopUpRequest(
-                    user_id=user_id, amount=amount, method='mp_checkout',
-                    mp_payment_id=str(mp_id), status='confirmed',
-                    confirmed_at=datetime.now(timezone.utc)
-                )
-                db.session.add(req)
-                db.session.add(WalletTransaction(
-                    user_id=user_id, amount=amount, type='deposit_mp',
-                    reference=str(mp_id), description=f'Recarga MP ${amount:.2f}'
-                ))
-                db.session.commit()
-                current_app.logger.info(f"Topup MP acreditado: user={user_id} ${amount}")
-    except IntegrityError:
-        db.session.rollback()
-        current_app.logger.info(f"Topup MP duplicado ignorado: mp_id={mp_id}")
-    except Exception as e:
-        current_app.logger.error(f"Webhook topup error: {e}")
-        db.session.rollback()
-
+    _credit_mp_payment(mp_id)
     return jsonify({'status': 'ok'})
 
 
 @main_bp.route('/wallet/topup/success')
 @login_required
 def wallet_topup_success():
-    flash('Recarga aprobada. Tu saldo se acreditó.', 'success')
-    return redirect(url_for('main.dashboard'))
+    """MP redirige acá (auto_return ~5 s post-pago) con ?payment_id=&status=.
+    Renderiza la página de validación: el loader llama a
+    /api/wallet/topup/verify, que acredita server-side con verificación
+    contra la API de MP. Idempotente: _credit_mp_payment deduplica."""
+    return render_template(
+        'topup_success.html',
+        payment_id=request.args.get('payment_id') or '',
+    )
+
+
+@main_bp.route('/api/wallet/topup/verify', methods=['POST'])
+@login_required
+@passenger_session_required
+@csrf_required
+def api_wallet_topup_verify():
+    """Verificación/acreditación de una recarga MP desde la página de éxito.
+
+    Llama a _credit_mp_payment(expected_user_id): verifica el pago contra la
+    API de MP antes de acreditar; idempotente ante retries del loader.
+    Respuesta: {credited: bool, amount: float|null}.
+    """
+    data = request.get_json(silent=True) or {}
+    mp_id = data.get('payment_id')
+    if not mp_id:
+        return jsonify({'error': 'Falta payment_id'}), 400
+
+    credited = _credit_mp_payment(mp_id, expected_user_id=session['user_id'])
+
+    amount = None
+    try:
+        req = TopUpRequest.query.filter_by(
+            mp_payment_id=str(int(mp_id)), status='confirmed'
+        ).first()
+        if req:
+            amount = float(req.amount)
+    except (ValueError, TypeError):
+        pass
+
+    return jsonify({'credited': bool(credited), 'amount': amount})
 
 
 @main_bp.route('/wallet/topup/failure')
@@ -1651,43 +1671,35 @@ def api_wallet_pay_driver():
     if not driver_id or not isinstance(amount, (int, float)) or amount <= 0:
         return jsonify({'error': 'Datos inválidos'}), 400
 
-    driver = db.session.query(User).filter_by(id=driver_id).with_for_update().first()
+    driver = db.session.query(User).filter_by(id=driver_id).first()
     if not driver or not driver.is_driver:
         return jsonify({'error': 'Conductor no encontrado'}), 404
-
-    passenger = db.session.query(User).filter_by(id=session['user_id']).with_for_update().first()
-    if not passenger:
-        return jsonify({'error': 'No autorizado'}), 401
 
     if trip_id:
         # Seguridad: el viaje debe pertenecer al pasajero de la sesión y el
         # importe no puede exceder la tarifa del viaje.
         trip = Trip.query.get(trip_id)
-        if not trip or trip.passenger_id != passenger.id:
+        if not trip or trip.passenger_id != session['user_id']:
             return jsonify({'error': 'Viaje no encontrado'}), 404
         if round_money(amount) > as_decimal(trip.total_fare):
             return jsonify({'error': 'El importe no puede exceder la tarifa del viaje'}), 400
 
     amt = round_money(amount)
-    if as_decimal(passenger.balance) < amt:
-        return jsonify({'error': 'Saldo insuficiente'}), 400
-
-    passenger.balance = round_money(as_decimal(passenger.balance) - amt)
-    driver.balance = round_money(as_decimal(driver.balance) + amt)
-
     desc = f'Pago al conductor {driver.name}'
     if trip_id:
         desc += f' (viaje #{trip_id})'
 
-    db.session.add(WalletTransaction(
-        user_id=passenger.id, counterparty_id=driver.id, amount=-amt,
-        type='trip_payment', trip_id=trip_id, description=desc
-    ))
-    db.session.add(WalletTransaction(
-        user_id=driver.id, counterparty_id=passenger.id, amount=amt,
-        type='trip_payment', trip_id=trip_id, description=desc
-    ))
-    db.session.commit()
+    from .services.wallet import WalletTransferError, wallet_transfer
+
+    try:
+        wallet_transfer(
+            session['user_id'], driver.id, amt,
+            tx_type='trip_payment', trip_id=trip_id, description=desc,
+        )
+        db.session.commit()
+    except WalletTransferError as exc:
+        db.session.rollback()
+        return jsonify({'error': exc.message}), 400
 
     return jsonify({'success': True, 'message': f'Pago de ${amt:.2f} realizado'})
 

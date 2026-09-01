@@ -65,7 +65,9 @@ def alembic_cfg(tmp_path, monkeypatch):
 @pytest.fixture
 def upgraded(alembic_cfg):
     cfg, db_path = alembic_cfg
-    command.upgrade(cfg, 'head')
+    # Target fijo (no 'head'): este archivo prueba SOLO 0003; migraciones
+    # posteriores pueden requerir tablas que el fixture mínimo no crea.
+    command.upgrade(cfg, '0003')
     return cfg, db_path
 
 
@@ -141,7 +143,7 @@ class TestOfflineMode:
         monkeypatch.setenv('DATABASE_URL', 'postgresql+psycopg://x:x@localhost:5432/van')
         cfg = Config(os.path.join(PROJECT_ROOT, 'alembic.ini'))
         cfg.set_main_option('script_location', os.path.join(PROJECT_ROOT, 'migrations'))
-        command.upgrade(cfg, 'head', sql=True)
+        command.upgrade(cfg, '0003', sql=True)
         out = capsys.readouterr().out
         assert 'ADD COLUMN status' in out
         assert 'chk_driver_profile_status' in out

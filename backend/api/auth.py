@@ -344,3 +344,109 @@ def verify_email():
     ev.verified_at = datetime.now(timezone.utc)
     db.session.commit()
     return ok({'email_verified': True})
+
+
+# ─────────────────── Profile, photo, password ───────────────────
+
+
+@api_bp.route('/auth/profile', methods=['PUT'])
+@jwt_required
+def update_profile():
+    """PUT /auth/profile — editar nombre y teléfono."""
+    user = current_user()
+    if not user:
+        raise ApiError('NOT_FOUND', 'Usuario no encontrado', 404)
+
+    data = request.get_json(silent=True) or {}
+    name = sanitize_input(data.get('name'))
+    phone = sanitize_input(data.get('phone'))
+
+    if name is not None:
+        err = validate_name(name)
+        if err:
+            raise ApiError('VALIDATION_ERROR', err)
+        user.name = name
+
+    if phone is not None:
+        user.phone = phone
+
+    db.session.commit()
+    return ok({'user': _user_payload(user, g.active_mode)})
+
+
+@api_bp.route('/auth/profile/photo', methods=['POST'])
+@jwt_required
+def upload_profile_photo():
+    """POST /auth/profile/photo — subir foto de perfil (base64)."""
+    user = current_user()
+    if not user:
+        raise ApiError('NOT_FOUND', 'Usuario no encontrado', 404)
+
+    data = request.get_json(silent=True) or {}
+    image_data = data.get('image')
+    if not image_data:
+        raise ApiError('VALIDATION_ERROR', 'image requerido (base64)')
+
+    try:
+        raw = base64.b64decode(
+            image_data.split(',', 1)[1] if ',' in image_data else image_data
+        )
+    except Exception:
+        raise ApiError('VALIDATION_ERROR', 'Imagen base64 inválida')
+
+    url = save_driver_photo(raw)
+    if not url or not url[0]:
+        raise ApiError('VALIDATION_ERROR', 'Imagen inválida o demasiado grande (máx 2MB)')
+
+    user.profile_picture = url[0]
+    db.session.commit()
+    return ok({'profile_picture': user.profile_picture})
+
+
+@api_bp.route('/auth/password', methods=['POST'])
+@jwt_required
+def change_password():
+    """POST /auth/password — cambiar contraseña."""
+    user = current_user()
+    if not user:
+        raise ApiError('NOT_FOUND', 'Usuario no encontrado', 404)
+
+    data = request.get_json(silent=True) or {}
+    current_password = data.get('current_password', '')
+    new_password = data.get('new_password', '')
+
+    if not current_password or not new_password:
+        raise ApiError('VALIDATION_ERROR', 'current_password y new_password requeridos')
+
+    if not check_password_hash(user.password, current_password):
+        raise ApiError('INVALID_CREDENTIALS', 'Contraseña actual incorrecta')
+
+    err = validate_password(new_password)
+    if err:
+        raise ApiError('VALIDATION_ERROR', err)
+
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    return ok({'success': True})
+
+
+@api_bp.route('/auth/guidelines', methods=['GET'])
+@jwt_required
+def guidelines_status():
+    """GET /auth/guidelines — verificar si el usuario aceptó las guidelines."""
+    user = current_user()
+    if not user:
+        raise ApiError('NOT_FOUND', 'Usuario no encontrado', 404)
+    return ok({'accepted': bool(user.accepted_guidelines)})
+
+
+@api_bp.route('/auth/guidelines', methods=['POST'])
+@jwt_required
+def accept_guidelines():
+    """POST /auth/guidelines — aceptar las guidelines de la comunidad."""
+    user = current_user()
+    if not user:
+        raise ApiError('NOT_FOUND', 'Usuario no encontrado', 404)
+    user.accepted_guidelines = True
+    db.session.commit()
+    return ok({'accepted': True})

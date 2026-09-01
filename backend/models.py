@@ -27,10 +27,20 @@ MODE_DRIVER = 'driver'
 TRIP_STATUSES = ('requested', 'accepted', 'ongoing', 'completed', 'cancelled')
 VEHICLE_TYPES = ('moto', 'auto')
 
+TRIP_PAYMENT_PENDING = 'pending'
+TRIP_PAYMENT_PAID = 'paid'
+TRIP_PAYMENT_STATUSES = (TRIP_PAYMENT_PENDING, TRIP_PAYMENT_PAID)
+
 DRIVER_STATUS_PENDING = 'pending'
 DRIVER_STATUS_APPROVED = 'approved'
 DRIVER_STATUS_REJECTED = 'rejected'
 DRIVER_STATUSES = (DRIVER_STATUS_PENDING, DRIVER_STATUS_APPROVED, DRIVER_STATUS_REJECTED)
+
+# Claves canónicas de método de pago (mismo set que PAYMENT_TYPES en routes.py,
+# que agrega los labels de presentación web).
+PAYMENT_METHODS = ('efectivo', 'mercadopago', 'transferencia', 'tarjeta', 'billetera')
+
+COMPANY_STATUSES_ACTIVE = ('trial', 'active')
 
 
 def _now():
@@ -171,6 +181,10 @@ class Trip(db.Model):
         ),
         CheckConstraint(f"status IN {TRIP_STATUSES}", name='chk_trip_status'),
         CheckConstraint(f"vehicle_type IN {VEHICLE_TYPES}", name='chk_trip_vehicle_type'),
+        CheckConstraint(
+            f"payment_status IN {TRIP_PAYMENT_STATUSES}", name='chk_trip_payment_status',
+        ),
+        UniqueConstraint('passenger_id', 'idempotency_key', name='uq_trips_passenger_idempotency'),
         Index('ix_trips_status_requested', 'status', 'requested_at'),
         Index('ix_trips_passenger_recent', 'passenger_id', 'requested_at'),
         Index('ix_trips_driver_recent', 'driver_id', 'requested_at'),
@@ -206,10 +220,21 @@ class Trip(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     cancelled_by = db.Column(db.String(20), nullable=True)
     payment_method = db.Column(db.String(50), nullable=True)
+    # Cobro (Fase cobro-en-finalización): payment_status pasa a 'paid' cuando
+    # finalize_trip() confirma el pago; payment_method_collected registra el
+    # método real usado (puede diferir del elegido si el conductor lo cambió).
+    payment_status = db.Column(
+        db.String(20), nullable=False, default=TRIP_PAYMENT_PENDING,
+    )
+    paid_at = db.Column(db.DateTime, nullable=True)
+    payment_method_collected = db.Column(db.String(50), nullable=True)
+    idempotency_key = db.Column(db.String(255), nullable=True)
 
     vehicle = db.relationship('Vehicle', backref='trips')
     company = db.relationship('Company', backref='trips')
     reviews = db.relationship('Review', backref='trip', lazy=True)
+    # passenger/driver llegan por backref de User.trips_as_passenger /
+    # User.trips_as_driver — NO declararlos acá (conflicto de backref).
 
     @hybrid_property
     def fare(self):
@@ -339,6 +364,7 @@ class TopUpRequest(db.Model):
     method = db.Column(db.String(30), nullable=False)
     voucher_url = db.Column(db.String(500), nullable=True)
     mp_payment_id = db.Column(db.String(100), nullable=True)
+    preference_id = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), default='pending')
     admin_note = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=_now)
@@ -374,3 +400,28 @@ class EmailVerification(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=_now)
     verified_at = db.Column(db.DateTime, nullable=True)
+
+
+class ApiIdempotencyKey(db.Model):
+    """Respuestas guardadas para replays idempotentes (contrato §11).
+
+    La clave es única por usuario+clave+método: un cliente no puede
+    clonar claves de otro. El body JSON permite devolver la respuesta
+    original sin re-ejecutar la operación.
+    """
+    __tablename__ = 'api_idempotency_keys'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'key', 'method', name='uq_idempotency_user_key_method'),
+        Index('ix_idempotency_created_at', 'created_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    key = db.Column(db.String(255), nullable=False)
+    method = db.Column(db.String(10), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    status_code = db.Column(db.Integer, nullable=False)
+    response_body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now)

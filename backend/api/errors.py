@@ -38,6 +38,10 @@ ERROR_CATALOG = {
     'INVALID_COORDINATES': (400, 'Coordenadas fuera de rango'),
     'LOCATION_REQUIRED': (400, 'Se requiere la ubicación del conductor'),
     'INSUFFICIENT_BALANCE': (400, 'Saldo insuficiente'),
+    'INVALID_VEHICLE_TYPE': (400, 'Tipo de vehículo inválido'),
+    'INVALID_PAYMENT_METHOD': (400, 'Método de pago inválido'),
+    'MERCADOPAGO_CONFIG': (500, 'Mercado Pago no está configurado correctamente'),
+    'MERCADOPAGO_API': (502, 'Error al comunicarse con Mercado Pago'),
 
     # ── no encontrado / método (404 / 405) ──
     'NOT_FOUND': (404, 'Recurso no encontrado'),

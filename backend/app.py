@@ -20,8 +20,9 @@ from backend.api import api_bp
 base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(base_dir, '.env'))
 
+_log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, _log_level, logging.INFO),
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
 )
 logger = logging.getLogger('van')
@@ -29,16 +30,24 @@ logger = logging.getLogger('van')
 
 def create_app():
     app = Flask(__name__, template_folder='templates', static_folder='static')
-    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+    is_prod = bool(os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('SSL_ENABLED'))
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000 if is_prod else 0
+
+    # ── Sentry (optional — set SENTRY_DSN env var to enable) ──
+    sentry_dsn = os.getenv('SENTRY_DSN')
+    if sentry_dsn:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[FlaskIntegration()],
+            traces_sample_rate=0.1,
+            environment='production' if is_prod else 'development',
+        )
+        logger.info("Sentry habilitado")
 
     database_url = os.getenv('DATABASE_URL')
-
-    if database_url and database_url.startswith('mysql://'):
-        database_url = database_url.replace(
-        'mysql://',
-        'mysql+pymysql://',
-        1
-    )
 
     if not database_url:
         database_url = 'sqlite:///:memory:'
@@ -68,6 +77,13 @@ def create_app():
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_SECURE'] = bool(os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('SSL_ENABLED'))
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=4)
+
+    # ── HTTP → HTTPS redirect (production) ──
+    @app.before_request
+    def redirect_to_https():
+        if is_prod and not request.is_secure and request.headers.get('X-Forwarded-Proto') != 'https':
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
 
     if database_url:
         try:
@@ -137,7 +153,7 @@ def create_app():
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.com https://js.mercadopago.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.com https://js.mercadopago.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'"
         if request.is_secure or os.getenv('RAILWAY_ENVIRONMENT'):
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response

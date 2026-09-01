@@ -63,3 +63,6 @@ def api_docs():
 
 
 from backend.api import auth  # noqa: E402  (registra rutas del módulo)
+from backend.api import trips  # noqa: E402  (registra rutas del módulo)
+from backend.api import wallet  # noqa: E402  (registra rutas del módulo)
+from backend.api import driver  # noqa: E402  (registra rutas del módulo)

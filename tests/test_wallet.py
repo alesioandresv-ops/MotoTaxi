@@ -170,8 +170,10 @@ class TestWalletPayDriver:
 
 
 class TestWalletTripPayment:
-    def test_wallet_payment_on_trip_complete(self, app, client):
-        uid = _create_user(app, balance=1000.0)
+    def _flow_to_ongoing(self, app, client, passenger_balance):
+        """Pasajero pide viaje en billetera; conductor acepta e inicia.
+        Devuelve (uid, did, trip_id) con el viaje en estado ongoing."""
+        uid = _create_user(app, balance=passenger_balance)
         did = _create_driver(app)
         _login(client, 'test@user.com', 'Pass1234')
         csrf = _get_csrf(client)
@@ -191,47 +193,94 @@ class TestWalletTripPayment:
         client.post(f'/driver/accept/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
         csrf = _get_csrf(client)
         client.post(f'/driver/start/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
+        return uid, did, trip_id
+
+    def _collect(self, client, trip_id, method='billetera'):
         csrf = _get_csrf(client)
-        rv = client.post(f'/driver/complete/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
-        assert rv.status_code == 200
+        return client.post(f'/api/trip/{trip_id}/collect-payment', data=json.dumps({
+            'method': method, 'csrf_token': csrf,
+        }), content_type='application/json')
+
+    def test_wallet_payment_on_trip_collect(self, app, client):
+        uid, did, trip_id = self._flow_to_ongoing(app, client, passenger_balance=1000.0)
+        rv = self._collect(client, trip_id, method='billetera')
+        assert rv.status_code == 200, f'Expected 200, got {rv.status_code}: {rv.data}'
+        body = rv.get_json()
+        assert body['success'] is True
+        assert body['status'] == 'completed'
+        assert body['payment_method_collected'] == 'billetera'
 
         from backend.models import User, Trip
         with app.app_context():
             u = User.query.get(uid)
             d = User.query.get(did)
             t = Trip.query.get(trip_id)
-            assert float(u.balance) < 1000.0
-            assert float(d.balance) > 0.0
             assert t.status == 'completed'
+            assert t.payment_status == 'paid'
+            assert t.payment_method_collected == 'billetera'
+            # Pasajero debita el total; conductor acredita earnings (comisión aparte)
+            assert float(u.balance) == round(1000.0 - float(t.fare), 2)
+            assert float(d.balance) == round(float(t.fare) - float(t.platform_fee), 2)
 
-    def test_insufficient_wallet_doesnt_deduct(self, app, client):
-        uid = _create_user(app, balance=1.0)
-        did = _create_driver(app)
-        _login(client, 'test@user.com', 'Pass1234')
-        csrf = _get_csrf(client)
-        client.post('/passenger/request', data={
-            'pickup_address': 'A', 'dropoff_address': 'B',
-            'csrf_token': csrf, 'pickup_lat': 19.43, 'pickup_lng': -99.13,
-            'dropoff_lat': 19.44, 'dropoff_lng': -99.14, 'distance_km': 5.0,
-            'payment_method': 'billetera',
-        }, follow_redirects=True)
+    def test_insufficient_wallet_blocks_completion(self, app, client):
+        """Saldo insuficiente: el cobro se bloquea (409), no hay deuda
+        fantasma y el conductor puede cobrar por otro método."""
+        uid, did, trip_id = self._flow_to_ongoing(app, client, passenger_balance=1.0)
+        rv = self._collect(client, trip_id, method='billetera')
+        assert rv.status_code == 409
+        assert rv.get_json()['code'] == 'PAYMENT_INSUFFICIENT_BALANCE'
 
-        from backend.models import Trip
-        with app.app_context():
-            trip_id = Trip.query.first().id
-
-        _login(client, 'test@driver.com', 'Pass1234')
-        csrf = _get_csrf(client)
-        client.post(f'/driver/accept/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
-        csrf = _get_csrf(client)
-        client.post(f'/driver/start/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
-        csrf = _get_csrf(client)
-        client.post(f'/driver/complete/{trip_id}', data={'csrf_token': csrf}, follow_redirects=True)
-
-        from backend.models import User
+        from backend.models import User, Trip, WalletTransaction
         with app.app_context():
             u = User.query.get(uid)
+            d = User.query.get(did)
+            t = Trip.query.get(trip_id)
+            # Nada cambió: viaje ongoing, saldos intactos, cero transacciones fantasma
+            assert t.status == 'ongoing'
+            assert t.payment_status == 'pending'
             assert float(u.balance) == 1.0
+            assert float(d.balance) == 0.0
+            assert WalletTransaction.query.count() == 0
+
+        # El conductor cambia de método y completa
+        rv = self._collect(client, trip_id, method='efectivo')
+        assert rv.status_code == 200
+        with app.app_context():
+            u = User.query.get(uid)
+            d = User.query.get(did)
+            t = Trip.query.get(trip_id)
+            assert t.status == 'completed'
+            assert t.payment_status == 'paid'
+            assert t.payment_method_collected == 'efectivo'
+            # Efectivo no toca billeteras
+            assert float(u.balance) == 1.0
+            assert float(d.balance) == 0.0
+
+    def test_collect_requires_ongoing_status(self, app, client):
+        """No se puede cobrar un viaje que no está en curso (p.ej. cancelled)."""
+        uid, did, trip_id = self._flow_to_ongoing(app, client, passenger_balance=1000.0)
+        with app.app_context():
+            from backend.models import db, Trip
+            t = Trip.query.get(trip_id)
+            t.status = 'cancelled'
+            db.session.commit()
+
+        rv = self._collect(client, trip_id, method='efectivo')
+        assert rv.status_code == 409
+        assert rv.get_json()['code'] == 'INVALID_STATUS'
+
+    def test_collect_rejects_invalid_method(self, app, client):
+        uid, did, trip_id = self._flow_to_ongoing(app, client, passenger_balance=1000.0)
+        rv = self._collect(client, trip_id, method='cripto')
+        assert rv.status_code in (400, 409)
+
+    def test_collect_is_for_driver_of_trip(self, app, client):
+        """Otro conductor no puede cobrar el viaje ajeno."""
+        uid, did, trip_id = self._flow_to_ongoing(app, client, passenger_balance=1000.0)
+        _create_driver(app, email='otro@driver.com')
+        _login(client, 'otro@driver.com', 'Pass1234')
+        rv = self._collect(client, trip_id, method='efectivo')
+        assert rv.status_code in (302, 403)
 
 
 class TestLatLongValidation:
